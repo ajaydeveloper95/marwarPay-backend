@@ -357,10 +357,9 @@ export const callBackResponse = asyncHandler(async (req, res) => {
 });
 
 export const testCallBackResponse = asyncHandler(async (req, res) => {
-    // let callBackData = req.body;
-    await transactionQueue.add({
-        data: req.body,
-    });
+    let callBackData = req.body;
+    
+    console.log("in bankRRN if");
 
     if (Object.keys(req.body).length === 1) {
         let key = Object.keys(req.body)
@@ -400,6 +399,7 @@ export const testCallBackResponse = asyncHandler(async (req, res) => {
     }
 
     if (pack && data?.BankRRN) {
+        
         transactionQueue.process(async (job) => {
             const callBackData = job.data;
             pack.callBackStatus = "Success"
@@ -474,8 +474,11 @@ export const testCallBackResponse = asyncHandler(async (req, res) => {
             }
 
             await axios.post(userCallBackURL, userRespSendApi, config)
-            res.status(200).json(new ApiResponse(200, null, "Successfully"))
         })
+        await transactionQueue.add({
+            data: req.body,
+        });
+        return res.status(200).json(new ApiResponse(200, null, "Successfully"))
     } else {
         return res.status(400).json({ succes: "Failed", message: "Txn Id Not Avabile!" })
     }
