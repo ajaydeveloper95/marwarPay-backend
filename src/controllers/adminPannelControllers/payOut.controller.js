@@ -8,6 +8,7 @@ import { asyncHandler } from "../../utils/asyncHandler.js";
 import { ApiResponse } from "../../utils/ApiResponse.js";
 import { AESUtils } from "../../utils/CryptoEnc.js";
 import { Mutex } from "async-mutex";
+import { Parser } from 'json2csv';
 import { ApiError } from "../../utils/ApiError.js";
 import { getPaginationArray } from "../../utils/helpers.js";
 import mongoose from "mongoose";
@@ -17,7 +18,7 @@ const payoutCallbackMutex = new Mutex();
 const chargeBackMutex = new Mutex();
 
 export const allPayOutPayment = asyncHandler(async (req, res) => {
-    let { page = 1, limit = 25, keyword = "", startDate, endDate, memberId, status } = req.query;
+    let { page = 1, limit = 25, keyword = "", startDate, endDate, memberId, status, export: exportToCSV } = req.query;
     page = Number(page) || 1;
     limit = Number(limit) || 25;
     const skip = (page - 1) * limit;
@@ -56,8 +57,12 @@ export const allPayOutPayment = asyncHandler(async (req, res) => {
             { $match: matchFilters },
             { $sort: { createdAt: sortDirection } },
 
-            { $skip: skip },
-            { $limit: limit },
+            ...(exportToCSV != "true"
+                ? [
+                    { $skip: skip },
+                    { $limit: limit }
+                ]
+                : []),
 
             {
                 $lookup: {
@@ -76,6 +81,27 @@ export const allPayOutPayment = asyncHandler(async (req, res) => {
                     preserveNullAndEmptyArrays: false
                 },
             },
+            ...(exportToCSV === "true"
+                ? [
+                    {
+                        $lookup: {
+                            from: "payoutrecodes", // Replace with the correct collection name for payoutSuccess
+                            localField: "trxId",
+                            foreignField: "trxId", // Replace with the appropriate field for linking
+                            as: "payoutSuccessData",
+                            pipeline: [
+                                { $project: { chargeAmount: 1, finalAmount: 1 } },
+                            ],
+                        },
+                    },
+                    {
+                        $unwind: {
+                            path: "$payoutSuccessData",
+                            preserveNullAndEmptyArrays: true,
+                        },
+                    },
+                ]
+                : []),
             {
                 $project: {
                     "_id": 1,
@@ -86,8 +112,8 @@ export const allPayOutPayment = asyncHandler(async (req, res) => {
                     "ifscCode": 1,
                     "amount": 1,
                     "isSuccess": 1,
-                    "chargeAmount": 1,
-                    "finalAmount": 1,
+                    "payoutSuccessData.chargeAmount": 1,
+                    "payoutSuccessData.finalAmount": 1,
                     "createdAt": 1,
                     "status": 1, // Include status in the projection
                     "userInfo.userName": 1,
@@ -101,6 +127,35 @@ export const allPayOutPayment = asyncHandler(async (req, res) => {
 
         if (!payment || payment.length === 0) {
             return res.status(400).json({ message: "Failed", data: "No Transaction Available!" });
+        }
+
+        if (exportToCSV === "true") {
+            const fields = [
+                "_id",
+                "trxId",
+                "accountHolderName",
+                "optxId",
+                "accountNumber",
+                "ifscCode",
+                "amount",
+                "isSuccess",
+                { value: "payoutSuccessData.chargeAmount", label: "Charge Amount" },
+                { value: "payoutSuccessData.finalAmount", label: "Final Amount" },
+                "createdAt",
+                "status",
+                { value: "userInfo.userName", label: "User Name" },
+                { value: "userInfo.fullName", label: "Full Name" },
+                { value: "userInfo.memberId", label: "Member ID" }
+            ];
+
+            const json2csvParser = new Parser({ fields });
+            const csv = json2csvParser.parse(payment);
+
+            res.header('Content-Type', 'text/csv');
+            res.attachment(`payoutPayments-${startDate}-${endDate}.csv`);
+            console.log("inside export if");
+
+            return res.status(200).send(csv);
         }
 
         const response = {
@@ -618,7 +673,7 @@ export const generatePayOut = asyncHandler(async (req, res, next) => {
                         if (BankJsonConvt.subStatus == -1 || 2 || -2) {
                             payOutModelGen.isSuccess = "Failed";
                             await payOutModelGen.save();
-                            return { message: BankJsonConvt}
+                            return { message: BankJsonConvt }
                         }
 
                         let userRespPayOut = {
