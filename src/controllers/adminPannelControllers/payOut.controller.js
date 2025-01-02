@@ -619,31 +619,30 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             Date: new Date().toString(),
                             UTR: utr,
                         }
-                        // await payoutCallBackResponse({ body: userCustomCallBackGen })
-                        let userCallBackResp = await callBackResponse.aggregate([{ $match: { memberId: payOutModelGen.memberId } }]);
+                        await payoutCallBackResponse({ body: userCustomCallBackGen })
+                        // let userCallBackResp = await callBackResponse.aggregate([{ $match: { memberId: payOutModelGen.memberId } }]);
 
-                        const payOutUserCallBackURL = userCallBackResp[0]?.payOutCallBackUrl;
-                        const config = {
-                            headers: {
-                                // 'Accept': 'application/json',
-                                'Content-Type': 'application/json'
-                            }
-                        };
+                        // const payOutUserCallBackURL = userCallBackResp[0]?.payOutCallBackUrl;
+                        // const config = {
+                        //     headers: {
+                        //         // 'Accept': 'application/json',
+                        //         'Content-Type': 'application/json'
+                        //     }
+                        // };
 
-                        const shareObjData = {
-                            status: "SUCCESS",
-                            txnid: trxId,
-                            optxid: orderId,
-                            amount: amount,
-                            rrn: utr
-                        }
-                        console.log(config, shareObjData, payOutUserCallBackURL);
+                        // const shareObjData = {
+                        //     status: "SUCCESS",
+                        //     txnid: trxId,
+                        //     optxid: orderId,
+                        //     amount: amount,
+                        //     rrn: utr
+                        // } 
 
-                        try {
-                            await axios.post(payOutUserCallBackURL, shareObjData, config)
-                        } catch (error) {
-                            return
-                        }
+                        // try {
+                        //     await axios.post(payOutUserCallBackURL, shareObjData, config)
+                        // } catch (error) {
+                        //     return
+                        // }
                         let userREspSend = {
                             statusCode: statusCode || 0,
                             status: status || 0,
