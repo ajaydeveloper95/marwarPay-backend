@@ -599,8 +599,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                         transactionStatus: "Success",
                     }
 
-                    const walletDoc = await walletModel.create(walletModelDataStore)
-                    console.log("walletDoc creatred>>>", walletDoc);
+                    const walletDoc = await walletModel.create(walletModelDataStore) 
                     
                     if ( status && status == 1) {
                         let payoutDataStore = {
