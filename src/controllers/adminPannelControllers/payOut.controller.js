@@ -673,10 +673,15 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                         }
                         await walletModel.create(walletModelDataStoreCR)
                         user.EwalletBalance += finalAmountDeduct;
-                        await userDB.updateOne(
-                            { _id: user?._Id },
-                            { $inc: { EwalletBalance: finalAmountDeduct } }
+                        const updatedUser = await userDB.findOneAndUpdate(
+                            { _id: user._id },
+                            { $inc: { EwalletBalance: finalAmountDeduct } },
+                            { new: true }  
                         );
+                        // await userDB.updateOne(
+                        //     { _id: user?._Id },
+                        //     { $inc: { EwalletBalance: finalAmountDeduct } }
+                        // );
                         payOutModelGen.isSuccess = "Failed"
                         await await payOutModelGen.save()
                         let userREspSend2 = {
