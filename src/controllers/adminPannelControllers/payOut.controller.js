@@ -573,54 +573,64 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                     clientOrderId: trxId
                 },
                 res: async (apiResponse) => {
-                    const { statusCode, status, message, orderId, utr, clientOrderId } = apiResponse;
-
+                    // const { statusCode=1, status =1, message ="", orderId="", utr="", clientOrderId="" } = apiResponse;
+                  const status = 1
+                  const statusCode = 1
                     user.EwalletBalance -= finalAmountDeduct;
-                    await userDB.updateOne(
-                        { _id: user?._Id },
-                        { $inc: { EwalletBalance: -finalAmountDeduct } }
+                    // await userDB.updateOne(
+                    //     { _id: user?._Id },
+                    //     { $inc: { EwalletBalance: -finalAmountDeduct } }
+                    // );
+                    const updatedUser = await userDB.findOneAndUpdate(
+                        { _id: user._id, EwalletBalance: { $gte: finalAmountDeduct } },
+                        { $inc: { EwalletBalance: -finalAmountDeduct } },
+                        { new: true }  
                     );
+                    // console.log("updateduser>>>>",updatedUser)
                     // await user.save()
                     let walletModelDataStore = {
                         memberId: user._id,
                         transactionType: "Dr.",
                         transactionAmount: amount,
-                        beforeAmount: Number(user.EwalletBalance),
+                        beforeAmount: Number(user.EwalletBalance) + finalAmountDeduct,
                         chargeAmount: chargeAmount,
-                        afterAmount: Number(user.EwalletBalance) - Number(finalAmountDeduct),
+                        afterAmount: Number(updatedUser.EwalletBalance),
                         description: `Successfully Dr. amount: ${Number(finalAmountDeduct)} with transaction Id: ${trxId}`,
                         transactionStatus: "Success",
                     }
 
-                    await walletModel.create(walletModelDataStore)
-
-                    if (status == 1) {
+                    const walletDoc = await walletModel.create(walletModelDataStore)
+                    console.log("walletDoc creatred>>>", walletDoc);
+                    
+                    if ( status && status == 1) {
                         let payoutDataStore = {
                             memberId: user?._id,
                             amount: amount,
                             chargeAmount: chargeAmount,
                             finalAmount: finalAmountDeduct,
-                            bankRRN: utr,
+                            // bankRRN: utr,
+                            bankRRN:  "1234",
                             trxId: trxId,
-                            optxId: orderId,
+                            optxId:  "1234",
+                            // optxId: orderId ,
                             isSuccess: "Success"
                         }
                         await payOutModel.create(payoutDataStore);
                         payOutModelGen.isSuccess = "Success"
-                        await payOutModelGen.save()
-                        let userCustomCallBackGen = {
-                            StatusCode: statusCode,
-                            Message: message,
-                            OrderId: orderId,
-                            Status: status,
-                            ClientOrderId: clientOrderId,
-                            PaymentMode: "IMPS",
-                            Amount: amount,
-                            Date: new Date().toString(),
-                            UTR: utr,
-                        }
-                        await payoutCallBackResponse({ body: userCustomCallBackGen })
-                        // let userCallBackResp = await callBackResponse.aggregate([{ $match: { memberId: payOutModelGen.memberId } }]);
+                        // await payOutModelGen.save()
+                        // let userCustomCallBackGen = {
+                        //     StatusCode: statusCode,
+                        //     Message: message || " ",
+                        //     OrderId: orderId || "1223",
+                        //     Status: status,
+                        //     ClientOrderId: clientOrderId || "1234",
+                        //     PaymentMode: "IMPS",
+                        //     Amount: amount,
+                        //     Date: new Date().toString(),
+                        //     UTR: utr || "1234",
+                        // }
+                        // const callback = await payoutCallBackResponse({ body: userCustomCallBackGen })
+                        // let userCallBackResp = callBackResponse.aggregate([{ $match: { memberId: payOutModelGen.memberId } }]);
 
                         // const payOutUserCallBackURL = userCallBackResp[0]?.payOutCallBackUrl;
                         // const config = {
@@ -647,36 +657,39 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             statusCode: statusCode || 0,
                             status: status || 0,
                             trxId: trxId || 0,
-                            opt_msg: message || "null"
+                            // opt_msg: message 
+                            opt_msg:  "null"
                         }
                         return new ApiResponse(200, userREspSend)
+                    } else {
+                        let walletModelDataStoreCR = {
+                            memberId: user?._id,
+                            transactionType: "Cr.",
+                            transactionAmount: amount,
+                            beforeAmount: Number(user.EwalletBalance) - Number(finalAmountDeduct),
+                            chargeAmount: chargeAmount,
+                            afterAmount: Number(user?.EwalletBalance),
+                            description: `Successfully Cr. amount: ${finalAmountDeduct} with trx id: ${trxId}`,
+                            transactionStatus: "Success",
+                        }
+                        await walletModel.create(walletModelDataStoreCR)
+                        user.EwalletBalance += finalAmountDeduct;
+                        await userDB.updateOne(
+                            { _id: user?._Id },
+                            { $inc: { EwalletBalance: finalAmountDeduct } }
+                        );
+                        payOutModelGen.isSuccess = "Failed"
+                        await await payOutModelGen.save()
+                        let userREspSend2 = {
+                            statusCode: statusCode || 0,
+                            status: status || 0,
+                            trxId: trxId || 0,
+                            // opt_msg: message
+                            opt_msg: "null"
+                        }
+                        return { message: "Failed", data: userREspSend2 }
                     }
 
-                    let walletModelDataStoreCR = {
-                        memberId: user?._id,
-                        transactionType: "Cr.",
-                        transactionAmount: amount,
-                        beforeAmount: Number(user.EwalletBalance) - Number(finalAmountDeduct),
-                        chargeAmount: chargeAmount,
-                        afterAmount: Number(user?.EwalletBalance),
-                        description: `Successfully Cr. amount: ${finalAmountDeduct} with trx id: ${trxId}`,
-                        transactionStatus: "Success",
-                    }
-                    await walletModel.create(walletModelDataStoreCR)
-                    user.EwalletBalance += finalAmountDeduct;
-                    await userDB.updateOne(
-                        { _id: user?._Id },
-                        { $inc: { EwalletBalance: finalAmountDeduct } }
-                    );
-                    payOutModelGen.isSuccess = "Failed"
-                    await await payOutModelGen.save()
-                    let userREspSend2 = {
-                        statusCode: statusCode || 0,
-                        status: status || 0,
-                        trxId: trxId || 0,
-                        opt_msg: message || "null"
-                    }
-                    return { message: "Failed", data: userREspSend2 }
                     // return { statusCode: statusCode || 0, status: status || 0, trxId: trxId, opt_msg: message || "null" }
 
                 }
@@ -778,14 +791,15 @@ export const generatePayOut = asyncHandler(async (req, res) => {
             }
         };
 
-        const apiResponse = await performPayoutApiCall(payOutApi, apiConfig);
-        if (!apiResponse || typeof apiResponse != "object") {
-            payOutModelGen.isSuccess = "Failed";
-            await payOutModelGen.save();
-            return res.status(500).json({ message: "Failed", data: { statusCode: 400, txnID: trxId } });
-        }
+        // const apiResponse = await performPayoutApiCall(payOutApi, apiConfig);
+        // if (!apiResponse || typeof apiResponse != "object") {
+        //     payOutModelGen.isSuccess = "Failed";
+        //     await payOutModelGen.save();
+        //     return res.status(500).json({ message: "Failed", data: { statusCode: 400, txnID: trxId } });
+        // }
 
-        const response = await apiConfig[payOutApi.apiName]?.res(apiResponse)
+        // const response = await apiConfig[payOutApi.apiName]?.res(apiResponse)
+        const response = await apiConfig[payOutApi.apiName]?.res()
 
         return res.status(200).json(response);
     } catch (error) { 
@@ -883,12 +897,12 @@ export const payoutCallBackResponse = asyncHandler(async (req, res) => {
             try {
                 await axios.post(payOutUserCallBackURL, shareObjData, config)
             } catch (error) {
-                return
+                return null
             }
             if (res) {
                 return res.status(200).json({ message: "Failed", data: `Trx Status Already ${getDocoment?.isSuccess}` })
             }
-            return
+            return null
         }
 
         if (getDocoment && data?.rrn && getDocoment?.isSuccess === "Pending") {
