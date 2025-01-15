@@ -1033,10 +1033,10 @@ export const rezorPayCallback = asyncHandler(async (req, res) => {
             const { payment: reqPaymentObj } = req.body.payload
             const qrGenDoc = await qrGenerationModel.findOne({ refId: reqPaymentLinkObj.entity.id });
 
-            if (!qrGenDoc || qrGenDoc.callBackStatus == "Success" || reqPaymentLinkObj.entity.status !== "paid") return res.status(400).json({ succes: "Failed", message: "Txn Id Not available!" });
+            if (typeof qrGenDoc == "undefined" || !qrGenDoc || qrGenDoc.callBackStatus == "Success" || reqPaymentLinkObj.entity.status !== "paid") return res.status(400).json({ success: "Failed", message: "Txn Id Not available!" });
 
             if (req.body.event === "payment_link.paid") {
-                qrGenDoc.callBackStatus = "Success";
+                qrGenDoc.callBackStatus = "Success"; 
             } else {
                 qrGenDoc.callBackStatus = "Failed";
             }
