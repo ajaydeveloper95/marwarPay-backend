@@ -14,7 +14,7 @@ export const apiValidate = asyncHandler(async (req, res, next) => {
         if (!user) {
             return res.status(400).json({ message: "Failed", data: "Invalid User or InActive user Please Try again !" })
         }
-
+        req.user = user
         let getUserIpList = await ipWhiteListDB.findOne({ memberId: user._id });
 
         if (!getUserIpList) {

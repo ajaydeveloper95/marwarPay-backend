@@ -478,7 +478,7 @@ export const generatePayment = async (req, res) => {
         }])
 
         if (user.length === 0) {
-            return res.status(400).json({ message: "Failed", data: "Invalid User or InActive user Please Try again !" })
+            return res.status(400).json({ message: "Failed", data: "Incorrect package configuration Please Try again !" })
         }
 
         let apiSwitchApiOption = user[0]?.payInApi?.apiName;
