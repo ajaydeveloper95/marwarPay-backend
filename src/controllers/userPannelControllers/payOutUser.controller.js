@@ -15,7 +15,7 @@ export const allPayOutTransactionGeneration = asyncHandler(async (req, res) => {
         readPreference: 'secondaryPreferred'
     };
 
-    let user = await payOutModelGen.aggregate([{ $match: { memberId: new mongoDBObJ(userId) } }, { $lookup: { from: "users", localField: "memberId", foreignField: "_id", as: "userInfo" } }, {
+    let user = await payOutModelGen.aggregate([{ $match: { memberId: new mongoose.Types.ObjectId(String(userId)) } }, { $lookup: { from: "users", localField: "memberId", foreignField: "_id", as: "userInfo" } }, {
         $unwind: {
             path: "$userInfo",
             preserveNullAndEmptyArrays: true,
@@ -37,7 +37,7 @@ export const allPayOutTransactionSuccess = asyncHandler(async (req, res) => {
         readPreference: 'secondaryPreferred'
     };
 
-    let user = await payOutModelSuccess.aggregate([{ $match: { memberId: new mongoDBObJ(userId) } }, { $lookup: { from: "users", localField: "memberId", foreignField: "_id", as: "userInfo" } }, {
+    let user = await payOutModelSuccess.aggregate([{ $match: { memberId: new mongoose.Types.ObjectId(String(userId)) } }, { $lookup: { from: "users", localField: "memberId", foreignField: "_id", as: "userInfo" } }, {
         $unwind: {
             path: "$userInfo",
             preserveNullAndEmptyArrays: true,
@@ -61,7 +61,7 @@ export const userPaymentStatusCheckPayOUt = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: "Failed", data: "User not valid or Inactive !" })
     }
 
-    let pack = await payOutModelGen.aggregate([{ $match: { $and: [{ trxId: trxId }, { memberId: new mongoDBObJ(user[0]._id) }] } }, { $lookup: { from: "payoutrecodes", localField: "trxId", foreignField: "trxId", as: "trxInfo" } }, {
+    let pack = await payOutModelGen.aggregate([{ $match: { $and: [{ trxId: trxId }, { memberId: new mongoose.Types.ObjectId(String(user[0]._id)) }] } }, { $lookup: { from: "payoutrecodes", localField: "trxId", foreignField: "trxId", as: "trxInfo" } }, {
         $unwind: {
             path: "$trxInfo",
             preserveNullAndEmptyArrays: true,
