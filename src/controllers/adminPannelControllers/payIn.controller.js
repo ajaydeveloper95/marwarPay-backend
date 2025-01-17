@@ -463,7 +463,11 @@ export const generatePayment = async (req, res) => {
         // const tempOldTransaction = await oldQrGenerationModel.findOne({ trxId })
         // if (tempTransaction || tempOldTransaction) return res.status(400).json({ message: "Failed", data: "Transaction Id alrteady exists !" })
         // if (tempTransaction) return res.status(400).json({ message: "Failed", data: "Transaction Id alrteady exists !" })
-        let user = await userDB.aggregate([{ $match: { $and: [{ userName: userName }, { trxAuthToken: authToken }, { isActive: true }] } }, { $lookup: { from: "payinswitches", localField: "payInApi", foreignField: "_id", as: "payInApi" } }, {
+        let user = await userDB.aggregate([{ $match: 
+            { $and: [{ userName: userName }, 
+                { trxAuthToken: authToken }, 
+                { isActive: true }] } }, 
+                { $lookup: { from: "payinswitches", localField: "payInApi", foreignField: "_id", as: "payInApi" } }, {
             $unwind: {
                 path: "$payInApi",
                 preserveNullAndEmptyArrays: true,
@@ -681,7 +685,7 @@ export const generatePayment = async (req, res) => {
                         return res.status(400).json({ message: "Failed", data: iSmartResponse?.data?.errors })
                     }
                 } catch (error) {
-                    return res.status(400).json({ message: "Failed", data: serverResp })
+                    return res.status(400).json({ message: "Failed", data: error.message })
                 }
             default:
                 let dataApiResponse = {
