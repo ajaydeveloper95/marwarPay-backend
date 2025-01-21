@@ -654,6 +654,7 @@ export const generatePayment = async (req, res) => {
                         "redirect_url": "https://www.google.com/",
                         // "webhook_url": `https://3947-122-176-8-218.ngrok-free.app/apiAdmin/v1/payin/iSmartPayWebhook`,
                         "webhook_url": `${process.env.BASE_URL}apiAdmin/v1/payin/iSmartPayWebhook`,
+                        // "webhook_url": ` https://1d6f-106-215-53-225.ngrok-free.app/apiAdmin/v1/payin/iSmartPayWebhook`,
                         "pay_type": "UPI",
                         "vpa": "abc@icici"
                     }
@@ -667,8 +668,8 @@ export const generatePayment = async (req, res) => {
                             'key': process.env.ISMART_PAY_ID
                         }
                     }
-                    const iSmartResponse = await axios.post(iSmartPayUrl, iSmartPayload, iSmartHeader)
-
+                    const iSmartResponse = await axios.post(iSmartPayUrl, iSmartPayload, iSmartHeader) 
+                    
                     if (iSmartResponse?.data?.status) {
                         paymentData.qrData = iSmartResponse?.data?.payment_url;
                         paymentData.refId = iSmartResponse?.data?.transaction_id;
@@ -677,13 +678,14 @@ export const generatePayment = async (req, res) => {
                             status_msg: "Payment link generated successfully",
                             status: 200,
                             qrImage: iSmartResponse?.data?.payment_url,
+                            qr:iSmartResponse?.data?.intent,
                             trxID: trxId,
                         }));
                     } else {
                         return res.status(400).json({ message: "Failed", data: iSmartResponse?.data?.errors })
                     }
                 } catch (error) {
-                    return res.status(400).json({ message: "Failed", data: serverResp })
+                    return res.status(400).json({ message: "Failed", data: error.message })
                 }
             default:
                 let dataApiResponse = {
@@ -1162,7 +1164,7 @@ export const iSmartPayCallback = asyncHandler(async (req, res) => {
         console.log("reqbody in ismart callback..", req.body);
         const qrGenDoc = await qrGenerationModel.findOne({ trxId: order_id });
         if (!qrGenDoc || qrGenDoc.callBackStatus == "Success") return res.status(400).json({ succes: "Failed", message: "Txn Id Not available!" });
-        if (status) {
+        if (status && status_code == "CREATED") {
             qrGenDoc.callBackStatus = "Success";
 
             const [userInfo] = await userDB.aggregate([
@@ -1253,6 +1255,7 @@ export const iSmartPayCallback = asyncHandler(async (req, res) => {
                 })
             ]);
         } else {
+            qrGenDoc.callBackStatus = "Failed";
             return res.status(400).json({ message: "Failed", data: "Transaction is pending or not successful" });
         }
 

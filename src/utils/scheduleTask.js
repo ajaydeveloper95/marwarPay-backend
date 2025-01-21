@@ -536,7 +536,7 @@ const matchingTrxIds = [
     "seabird6210247",
     "seabird6210246",
     "seabird6210244",
-]
+] 
 const transactionMutex = new Mutex();
 const logsMutex = new Mutex();
 const loopMutex = new Mutex();
@@ -992,6 +992,8 @@ function payinScheduleTask() {
                 { $limit: 10 }
             ]);
 
+            
+
             if (!logs.length) return;
 
             for (const log of logs) {
@@ -1153,6 +1155,203 @@ function payinScheduleTask() {
 
                 } catch (error) {
                     console.error(`Error processing log with trxId ${log.requestBody.txnID}:`, error.message);
+                } finally {
+                    loopRelease()
+                }
+            }
+
+        } catch (error) {
+            console.log("Error in payin schedule task:", error.message);
+        } finally {
+            release()
+        }
+    });
+}
+
+function payinScheduleTask2() {
+    cron.schedule('*/10 * * * * *', async () => {
+        const release = await logsMutex.acquire()
+        try {
+            const startOfYesterday = moment().startOf('day').subtract(1, 'day').toDate();
+            const endOfYesterday = moment().startOf('day').subtract(1, 'milliseconds').toDate();
+            const endOfLastHalfHour = moment().toDate(); // Current time
+            const startOfLastHalfHour = moment().subtract(30, 'minutes').toDate(); 
+            // const logs = await oldQrGenerationModel.aggregate([
+            //     {
+            //         $match: {
+            //             trxId:{$in: matchingPayinTrxIds}
+            //         },
+            //     },
+            //     { $limit: 1 }
+            // ]);
+
+            // if (!logs.length) return;
+
+            for (const log of matchingPayinTrx) {
+                const loopRelease = await loopMutex.acquire()
+                try {
+                    const trxId = log.trxId;
+                    if (!trxId) throw new Error("Missing trxId in log");
+                    let qrDoc
+                    qrDoc = await qrGenerationModel.findOneAndUpdate(
+                        { trxId, callBackStatus: {$ne:"Success"} },
+                        // { trxId, callBackStatus: "Pending" },
+                        { callBackStatus: "Success" },
+                        { returnDocument: "after" }
+                    )
+
+                    if (!qrDoc) {
+                        qrDoc = await oldQrGenerationModel.findOneAndUpdate(
+                            { trxId, callBackStatus: {$ne:"Success"} },
+                            // { trxId, callBackStatus: "Pending" },
+                            { callBackStatus: "Success" },
+                            { returnDocument: "after" }
+                        );
+                    }
+                    console.log("qrDoc>>", qrDoc);
+
+                    if (!qrDoc) throw new Error("QR Generation document not found or already processed");
+
+                    // let callBackData = log.requestBody;
+                    // if (Object.keys(callBackData).length === 1) {
+                    //     const key = Object.keys(callBackData)[0];
+                    //     callBackData = JSON.parse(key);
+                    // }
+
+                    // const switchApi = callBackData.partnerTxnId
+                    //     ? "neyopayPayIn"
+                    //     : callBackData.txnID
+                    //         ? "marwarpayInSwitch"
+                    //         : null;
+
+                    // if (!switchApi) throw new Error("Invalid transaction data in log");
+
+                    // const data = switchApi === "neyopayPayIn"
+                    //     ? {
+                    //         status: callBackData?.txnstatus === "Success" ? 200 : 400,
+                    //         payerAmount: callBackData?.amount,
+                    //         payerName: callBackData?.payerName,
+                    //         txnID: callBackData?.partnerTxnId,
+                    //         BankRRN: callBackData?.rrn,
+                    //         payerVA: callBackData?.payerVA,
+                    //         TxnInitDate: callBackData?.TxnInitDate,
+                    //         TxnCompletionDate: callBackData?.TxnCompletionDate,
+                    //     }
+                    //     : {
+                    //         status: callBackData?.status,
+                    //         payerAmount: callBackData?.payerAmount,
+                    //         payerName: callBackData?.payerName,
+                    //         txnID: callBackData?.txnID,
+                    //         BankRRN: callBackData?.BankRRN,
+                    //         payerVA: callBackData?.payerVA,
+                    //         TxnInitDate: callBackData?.TxnInitDate,
+                    //         TxnCompletionDate: callBackData?.TxnCompletionDate,
+                    //     };
+
+                    // if (data.status !== 200) throw new Error("Transaction is pending or not successful");
+
+                    const [userInfo] = await userDB.aggregate([
+                        { $match: { _id: qrDoc.memberId } },
+                        { $lookup: { from: "packages", localField: "package", foreignField: "_id", as: "package" } },
+                        { $unwind: { path: "$package", preserveNullAndEmptyArrays: true } },
+                        { $lookup: { from: "payinpackages", localField: "package.packagePayInCharge", foreignField: "_id", as: "packageCharge" } },
+                        { $unwind: { path: "$packageCharge", preserveNullAndEmptyArrays: true } },
+                        { $project: { _id: 1, userName: 1, upiWalletBalance: 1, packageCharge: 1 } },
+                    ])
+                    const callBackPayinUrl = await callBackResponseModel.findOne({ memberId: qrDoc.memberId, isActive: true }).select("payInCallBackUrl")
+
+
+                    if (!callBackPayinUrl) throw new Error("Callback URL is missing");
+
+
+                    if (!userInfo) throw new Error("User info missing");
+                    const payerAmount = qrDoc?.amount
+                    const payerName = qrDoc?.name
+
+                    const chargeRange = userInfo.packageCharge?.payInChargeRange || [];
+                    const charge = chargeRange.find(
+                        (range) => range.lowerLimit <= payerAmount && range.upperLimit > payerAmount
+                    );
+
+                    if (!charge) throw new Error("Package details are invalid.");;
+
+                    const userChargeApply =
+                        charge.chargeType === "Flat"
+                            ? charge.charge
+                            : (charge.charge / 100) * payerAmount;
+                    const finalAmountAdd = payerAmount - userChargeApply;
+
+                    const tempPayin = await payInModel.findOne({ trxId: qrDoc?.trxId })
+                    const [tempUpiDoc] = await upiWalletModel.find({description:{$regex:trxId, $options:'i'}})
+
+                    if (tempPayin || tempUpiDoc) {
+                        // await Log.findByIdAndUpdate(log._id, {
+                        //     $push: { description: "Log processed for payin and marked success" },
+                        // });
+                        throw new Error(`Trasaction already created: ${tempPayin ? tempPayin : tempUpiDoc}`);
+                    }
+                    const upiWalletDataObject = {
+                        memberId: userInfo?._id,
+                        transactionType: "Cr.",
+                        transactionAmount: finalAmountAdd,
+                        beforeAmount: userInfo?.upiWalletBalance,
+                        afterAmount: Number(userInfo?.upiWalletBalance) + Number(finalAmountAdd),
+                        description: `Successfully Cr. amount: ${finalAmountAdd}  trxId: ${trxId}`,
+                        transactionStatus: "Success"
+                    }
+
+                    await upiWalletModel.create(upiWalletDataObject);
+                    const upiWalletUpdateResult = await userDB.findByIdAndUpdate(userInfo._id, {
+                        $inc: { upiWalletBalance: finalAmountAdd },
+                    })
+
+                    const payInCreateResult = await payInModel.create({
+                        memberId: qrDoc.memberId,
+                        payerName: payerName,
+                        trxId: trxId,
+                        amount: payerAmount,
+                        chargeAmount: userChargeApply,
+                        finalAmount: finalAmountAdd,
+                        vpaId: log.VPA,
+                        bankRRN: log.RRN,
+                        description: `QR Generated Successfully Amount:${payerAmount} PayerVa:${log.VPA} BankRRN:${log.RRN}`,
+                        trxCompletionDate: new Date(log.trxDate),
+                        trxInItDate: qrDoc?.createdAt,
+                        isSuccess: "Success",
+                    })
+
+                    if (!upiWalletUpdateResult || !payInCreateResult) {
+                        throw new Error("Error updating wallet or creating pay-in record");
+                    }
+
+                    const userRespSendApi = {
+                        status: 200,
+                        payerAmount: payerAmount,
+                        payerName: payerName,
+                        txnID: trxId,
+                        BankRRN: log.BankRRN,
+                        payerVA: log.VPA,
+                        TxnInitDate: new Date(qrDoc.createdAt),
+                        TxnCompletionDate: log.trxDate,
+                    };
+                    console.log("callBackPayinUrl.payInCallBackUrl>>>", callBackPayinUrl.payInCallBackUrl, userRespSendApi);
+
+
+
+                    await axios.post(callBackPayinUrl.payInCallBackUrl, userRespSendApi, {
+                        headers: {
+                            Accept: "application/json",
+                            "Content-Type": "application/json",
+                        },
+                    });
+                    break
+                    // await Log.findByIdAndUpdate(log._id, {
+                    //     $push: { description: "Log processed for payin and marked success" },
+                    // });
+
+                } catch (error) {
+                    console.error(`Error processing log with trxId ${log.trxId}:`, error.message);
+                    break
                 } finally {
                     loopRelease()
                 }
@@ -1349,4 +1548,5 @@ export default function scheduleTask() {
     // payinScheduleTask()
     // payoutTaskScript()
     // payoutDeductPackageTaskScript()
+    // payinScheduleTask2()
 }
