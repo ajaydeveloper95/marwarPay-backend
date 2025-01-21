@@ -652,8 +652,8 @@ export const generatePayment = async (req, res) => {
                         "mobile": mobileNumber,
                         "name": name,
                         "redirect_url": "https://www.google.com/", 
-                        "webhook_url": `${process.env.BASE_URL}apiAdmin/v1/payin/iSmartPayWebhook`,
-                        // "webhook_url": ` https://c508-183-83-53-236.ngrok-free.app/apiAdmin/v1/payin/iSmartPayWebhook`,
+                        // "webhook_url": `${process.env.BASE_URL}apiAdmin/v1/payin/iSmartPayWebhook`,
+                        "webhook_url": `https://c508-183-83-53-236.ngrok-free.app/apiAdmin/v1/payin/iSmartPayWebhook`,
                         "pay_type": "UPI",
                         "vpa": "abc@icici"
                     }
@@ -1159,8 +1159,7 @@ export const rezorPayCallback = asyncHandler(async (req, res) => {
 export const iSmartPayCallback = asyncHandler(async (req, res) => {
     const release = await iSmartMutex.acquire()
     const { status, status_code, currency, amount, bank_id, order_id, transaction_id } = req.body
-    try {
-        console.log("reqbody in ismart callback..", req.body);
+    try { 
         const qrGenDoc = await qrGenerationModel.findOne({ trxId: order_id });
         if (!qrGenDoc || qrGenDoc.callBackStatus == "Success") return res.status(400).json({ succes: "Failed", message: "Txn Id Not available!" });
         if (status && status_code == "SUCCESS") {
