@@ -653,8 +653,8 @@ export const generatePayment = async (req, res) => {
                         "name": name,
                         "redirect_url": "https://www.google.com/",
                         // "webhook_url": `https://3947-122-176-8-218.ngrok-free.app/apiAdmin/v1/payin/iSmartPayWebhook`,
-                        "webhook_url": `${process.env.BASE_URL}apiAdmin/v1/payin/iSmartPayWebhook`,
-                        // "webhook_url": ` https://1d6f-106-215-53-225.ngrok-free.app/apiAdmin/v1/payin/iSmartPayWebhook`,
+                        // "webhook_url": `${process.env.BASE_URL}apiAdmin/v1/payin/iSmartPayWebhook`,
+                        "webhook_url": ` https://c508-183-83-53-236.ngrok-free.app/apiAdmin/v1/payin/iSmartPayWebhook`,
                         "pay_type": "UPI",
                         "vpa": "abc@icici"
                     }
@@ -1164,7 +1164,7 @@ export const iSmartPayCallback = asyncHandler(async (req, res) => {
         console.log("reqbody in ismart callback..", req.body);
         const qrGenDoc = await qrGenerationModel.findOne({ trxId: order_id });
         if (!qrGenDoc || qrGenDoc.callBackStatus == "Success") return res.status(400).json({ succes: "Failed", message: "Txn Id Not available!" });
-        if (status && status_code == "CREATED") {
+        if (status && status_code == "SUCCESS") {
             qrGenDoc.callBackStatus = "Success";
 
             const [userInfo] = await userDB.aggregate([
