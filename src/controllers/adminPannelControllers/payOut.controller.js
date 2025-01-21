@@ -432,7 +432,6 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                     RequestData: BodyRequestEnc
                 },
                 res: async (apiResponse) => {
-                    console.log(apiResponse, "resp")
                     try {
                         if (apiResponse === "Ip validation Failed") {
                             // console.log("api failed")
@@ -923,7 +922,6 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             readPreference: { mode: 'primary' },
                             maxTimeMS: 1500
                         };
-                        // wallet deducted and store ewallet trx
                         try {
                             walletAddsession.startTransaction(transactionOptions);
                             const opts = { walletAddsession };
