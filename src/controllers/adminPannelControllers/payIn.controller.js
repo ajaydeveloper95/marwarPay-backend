@@ -651,10 +651,9 @@ export const generatePayment = async (req, res) => {
                         "email": "ww.j007@ff.in",
                         "mobile": mobileNumber,
                         "name": name,
-                        "redirect_url": "https://www.google.com/",
-                        // "webhook_url": `https://3947-122-176-8-218.ngrok-free.app/apiAdmin/v1/payin/iSmartPayWebhook`,
-                        // "webhook_url": `${process.env.BASE_URL}apiAdmin/v1/payin/iSmartPayWebhook`,
-                        "webhook_url": ` https://c508-183-83-53-236.ngrok-free.app/apiAdmin/v1/payin/iSmartPayWebhook`,
+                        "redirect_url": "https://www.google.com/", 
+                        "webhook_url": `${process.env.BASE_URL}apiAdmin/v1/payin/iSmartPayWebhook`,
+                        // "webhook_url": ` https://c508-183-83-53-236.ngrok-free.app/apiAdmin/v1/payin/iSmartPayWebhook`,
                         "pay_type": "UPI",
                         "vpa": "abc@icici"
                     }
