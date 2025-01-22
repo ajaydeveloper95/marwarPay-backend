@@ -465,7 +465,7 @@ export const allSuccessPayment = asyncHandler(async (req, res) => {
 
 export const generatePayment = async (req, res) => {
     try {
-        const { userName, authToken, name, amount, trxId, mobileNumber } = req.body
+        const { userName, authToken, name, amount, trxId, mobileNumber, email } = req.body
         // const tempTransaction = await qrGenerationModel.findOne({ trxId })
         // const tempOldTransaction = await oldQrGenerationModel.findOne({ trxId })
         // if (tempTransaction || tempOldTransaction) return res.status(400).json({ message: "Failed", data: "Transaction Id alrteady exists !" })
@@ -648,10 +648,10 @@ export const generatePayment = async (req, res) => {
                         "currency": "INR",
                         "amount": amount,
                         "order_id": trxId,
-                        "email": "ww.j007@ff.in",
+                        "email": email,
                         "mobile": mobileNumber,
                         "name": name,
-                        "redirect_url": "https://www.google.com/", 
+                        "redirect_url": "https://www.google.com/",
                         // "webhook_url": `${process.env.BASE_URL}apiAdmin/v1/payin/iSmartPayWebhook`,
                         "webhook_url": `https://c508-183-83-53-236.ngrok-free.app/apiAdmin/v1/payin/iSmartPayWebhook`,
                         "pay_type": "UPI",
@@ -667,8 +667,8 @@ export const generatePayment = async (req, res) => {
                             'key': process.env.ISMART_PAY_ID
                         }
                     }
-                    const iSmartResponse = await axios.post(iSmartPayUrl, iSmartPayload, iSmartHeader) 
-                    
+                    const iSmartResponse = await axios.post(iSmartPayUrl, iSmartPayload, iSmartHeader)
+
                     if (iSmartResponse?.data?.status) {
                         paymentData.qrData = iSmartResponse?.data?.payment_url;
                         paymentData.refId = iSmartResponse?.data?.transaction_id;
@@ -677,7 +677,7 @@ export const generatePayment = async (req, res) => {
                             status_msg: "Payment link generated successfully",
                             status: 200,
                             qrImage: iSmartResponse?.data?.payment_url,
-                            qr:iSmartResponse?.data?.intent,
+                            qr: iSmartResponse?.data?.intent,
                             trxID: trxId,
                         }));
                     } else {
@@ -1037,7 +1037,7 @@ export const rezorPayCallback = asyncHandler(async (req, res) => {
             if (typeof qrGenDoc == "undefined" || !qrGenDoc || qrGenDoc.callBackStatus == "Success" || reqPaymentLinkObj.entity.status !== "paid") return res.status(400).json({ success: "Failed", message: "Txn Id Not available!" });
 
             if (req.body.event === "payment_link.paid") {
-                qrGenDoc.callBackStatus = "Success"; 
+                qrGenDoc.callBackStatus = "Success";
             } else {
                 qrGenDoc.callBackStatus = "Failed";
             }
@@ -1159,7 +1159,7 @@ export const rezorPayCallback = asyncHandler(async (req, res) => {
 export const iSmartPayCallback = asyncHandler(async (req, res) => {
     const release = await iSmartMutex.acquire()
     const { status, status_code, currency, amount, bank_id, order_id, transaction_id } = req.body
-    try { 
+    try {
         const qrGenDoc = await qrGenerationModel.findOne({ trxId: order_id });
         if (!qrGenDoc || qrGenDoc.callBackStatus == "Success") return res.status(400).json({ succes: "Failed", message: "Txn Id Not available!" });
         if (status && status_code == "SUCCESS") {

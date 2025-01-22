@@ -17,6 +17,7 @@ router.post("/generatePayment", celebrate({
         refId: Joi.string().optional(),
         amount: Joi.number().required(),
         name: Joi.string().required(),
+        email: Joi.string().required(),
         mobileNumber: Joi.string().required(),
     })
 }), apiValidate, generatePayment);
