@@ -536,7 +536,7 @@ const matchingTrxIds = [
     "seabird6210247",
     "seabird6210246",
     "seabird6210244",
-] 
+]
 const transactionMutex = new Mutex();
 const logsMutex = new Mutex();
 const loopMutex = new Mutex();
@@ -618,19 +618,21 @@ const loopMutex = new Mutex();
 // }
 
 function scheduleWayuPayOutCheck() {
-    cron.schedule('*/20 * * * * *', async () => {
+    cron.schedule('*/2 * * * * *', async () => {
+        const release = await transactionMutex.acquire();
         let GetData = await payOutModelGenerate.find({
-            isSuccess: { $ne: "Success" },  
-            trxId: { $in: matchingTrxIds }  
-          })
-          .sort({ createdAt: 1 })  
-          .limit(20); 
+            isSuccess: "Pending",
+        })
+            .sort({ createdAt: -1 }).limit(10)
         try {
             GetData.forEach(async (item) => {
                 await processWaayuPayOutFn(item)
+                // console.log(item)
             });
         } catch (error) {
             console.error('Error during payout check:', error.message);
+        } finally {
+            release()
         }
     });
 }
@@ -650,53 +652,23 @@ async function processWaayuPayOutFn(item) {
     };
 
     const { data } = await axios.post(uatUrl, postAdd, header);
+    console.log("!!!!!!!!!!!!!!!!!!!!", data, "!!!!!!!!!!!!!!!!!!!!!")
     const session = await userDB.startSession({ readPreference: 'primary', readConcern: { level: "majority" }, writeConcern: { w: "majority" } });
-    const release = await transactionMutex.acquire();
+    // const release = await transactionMutex.acquire();
     try {
         session.startTransaction();
         const opts = { session };
 
-        // console.log(data)
+        console.log(data)
 
-        if (data?.status === null) {
-            await session.abortTransaction();
-            return false
-        }
-
-        // Non-transactional operation can be done outside the critical section
-        // if (data?.status !== 1) {
-        //     console.log("failed added Status");
-        //     await payOutModelGenerate.findByIdAndUpdate(item._id, { isSuccess: "Failed" }, opts);
-        //     // Use Promise.all for parallel execution of independent tasks
-        //     const userWalletInfo = await userDB.findById(item?.memberId, "_id EwalletBalance", opts)
-
-        //     const beforeAmountUser = userWalletInfo?.EwalletBalance;
-        //     const finalEwalletDeducted = item?.afterChargeAmount;
-
-        //     userWalletInfo.EwalletBalance += finalEwalletDeducted;
-        //     await userWalletInfo.save(opts);
-
-        //     const walletModelDataStore = {
-        //         memberId: userWalletInfo._id,
-        //         transactionType: "Cr.",
-        //         transactionAmount: item?.amount,
-        //         beforeAmount: beforeAmountUser,
-        //         chargeAmount: item?.gatwayCharge || item?.afterChargeAmount - item?.amount,
-        //         afterAmount: beforeAmountUser + finalEwalletDeducted,
-        //         description: `Successfully Cr. amount: ${finalEwalletDeducted} with :${item?.trxId}`,
-        //         transactionStatus: "Success",
-        //     };
-
-        //     await walletModel.create([walletModelDataStore], opts)
-        //     await session.commitTransaction();
-        //     return true;
-
+        // if (data?.status === null) {
+        //     await session.abortTransaction();
+        //     return false
         // }
-
-        else if (data?.status === 1) {
+        if (data?.status === 1) {
             // Final update and commit in transaction
             let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(item?._id, { isSuccess: "Success" }, { session, new: true });
-            console.log(payoutModelData)
+            console.log(payoutModelData?.trxId, "with success")
             let finalEwalletDeducted = payoutModelData?.afterChargeAmount
 
             let PayoutStoreData = {
@@ -711,29 +683,50 @@ async function processWaayuPayOutFn(item) {
             }
 
             let v = await payOutModel.create([PayoutStoreData], opts)
-            console.log(v, "hello")
-            const finalAmountDeduct = item?.amount + item?.gatwayCharge;
-            const user = await userDB.findByIdAndUpdate(item?.memberId, { $inc: { EwalletBalance: - finalAmountDeduct } }, {
+            console.log(v?.trxId)
+            await session.commitTransaction();
+            console.log("trxId updated==>", item?.trxId);
+
+            return true;
+        }
+        else if (data?.status === 4 || data?.status === 0 || data?.status === 2 || data?.status === null) {
+            // trx is falied and update the status
+            let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(item?._id, { isSuccess: "Failed" }, { session, new: true });
+            console.log(payoutModelData?.trxId, "with falied")
+            let finalEwalletDeducted = payoutModelData?.afterChargeAmount
+
+            // update ewallets
+            // update wallet 
+            let userWallet = await userDB.findByIdAndUpdate(item?.memberId, { $inc: { EwalletBalance: + finalEwalletDeducted } }, {
                 returnDocument: 'after',
                 session
             })
-            let afterAmount = user?.EwalletBalance
-            let beforeAmount = user?.EwalletBalance + finalAmountDeduct;
+
+            let afterAmount = userWallet?.EwalletBalance
+            let beforeAmount = userWallet?.EwalletBalance - finalEwalletDeducted;
+
+
+            // ewallet store 
             let walletModelDataStore = {
                 memberId: item?.memberId,
-                transactionType: "Dr.",
+                transactionType: "Cr.",
                 transactionAmount: item?.amount,
                 beforeAmount: beforeAmount,
                 chargeAmount: item?.gatwayCharge,
                 afterAmount: afterAmount,
-                description: `Successfully Dr. amount: ${Number(finalAmountDeduct)} with transaction Id: ${item?.trxId}`,
+                description: `Successfully Cr. amount: ${Number(finalEwalletDeducted)} with transaction Id: ${item?.trxId}`,
                 transactionStatus: "Success",
             }
 
-            await EwalletModel.create([walletModelDataStore], opts)
-            await session.commitTransaction(); 
+            await walletModel.create([walletModelDataStore], opts)
+            // Commit the transaction
+            await session.commitTransaction();
+            // console.log('Transaction committed successfully');
+
+            console.log(item?.trxId)
+            await session.commitTransaction();
             console.log("trxId updated==>", item?.trxId);
-            
+
             return true;
         }
         else {
@@ -741,9 +734,6 @@ async function processWaayuPayOutFn(item) {
             await session.abortTransaction();
             return true;
         }
-        // Commit transaction
-        // await session.commitTransaction();
-        // return true;
 
     } catch (error) {
         console.log("inside the error", error)
@@ -751,12 +741,12 @@ async function processWaayuPayOutFn(item) {
         return false
     } finally {
         session.endSession();
-        release()
+        // release()
     }
 }
 
 function migrateData() {
-    cron.schedule('0,30 * * * *', async () => {
+    cron.schedule('0,10 * * * *', async () => {
         const release = await transactionMutex.acquire();
         try {
             console.log("Running cron job to migrate old data...");
@@ -764,7 +754,7 @@ function migrateData() {
             const threeHoursAgo = new Date();
             threeHoursAgo.setHours(threeHoursAgo.getHours() - 3)
 
-            const oldData = await qrGenerationModel.find({ createdAt: { $lt: threeHoursAgo } }).sort({ createdAt: 1 }).limit(3000);
+            const oldData = await qrGenerationModel.find({ createdAt: { $lt: threeHoursAgo } }).sort({ createdAt: 1 }).limit(5000);
 
             if (oldData.length > 0) {
                 const newData = oldData.map(item => ({
@@ -992,7 +982,7 @@ function payinScheduleTask() {
                 { $limit: 10 }
             ]);
 
-            
+
 
             if (!logs.length) return;
 
@@ -1175,7 +1165,7 @@ function payinScheduleTask2() {
             const startOfYesterday = moment().startOf('day').subtract(1, 'day').toDate();
             const endOfYesterday = moment().startOf('day').subtract(1, 'milliseconds').toDate();
             const endOfLastHalfHour = moment().toDate(); // Current time
-            const startOfLastHalfHour = moment().subtract(30, 'minutes').toDate(); 
+            const startOfLastHalfHour = moment().subtract(30, 'minutes').toDate();
             // const logs = await oldQrGenerationModel.aggregate([
             //     {
             //         $match: {
@@ -1194,7 +1184,7 @@ function payinScheduleTask2() {
                     if (!trxId) throw new Error("Missing trxId in log");
                     let qrDoc
                     qrDoc = await qrGenerationModel.findOneAndUpdate(
-                        { trxId, callBackStatus: {$ne:"Success"} },
+                        { trxId, callBackStatus: { $ne: "Success" } },
                         // { trxId, callBackStatus: "Pending" },
                         { callBackStatus: "Success" },
                         { returnDocument: "after" }
@@ -1202,7 +1192,7 @@ function payinScheduleTask2() {
 
                     if (!qrDoc) {
                         qrDoc = await oldQrGenerationModel.findOneAndUpdate(
-                            { trxId, callBackStatus: {$ne:"Success"} },
+                            { trxId, callBackStatus: { $ne: "Success" } },
                             // { trxId, callBackStatus: "Pending" },
                             { callBackStatus: "Success" },
                             { returnDocument: "after" }
@@ -1282,7 +1272,7 @@ function payinScheduleTask2() {
                     const finalAmountAdd = payerAmount - userChargeApply;
 
                     const tempPayin = await payInModel.findOne({ trxId: qrDoc?.trxId })
-                    const [tempUpiDoc] = await upiWalletModel.find({description:{$regex:trxId, $options:'i'}})
+                    const [tempUpiDoc] = await upiWalletModel.find({ description: { $regex: trxId, $options: 'i' } })
 
                     if (tempPayin || tempUpiDoc) {
                         // await Log.findByIdAndUpdate(log._id, {
@@ -1542,9 +1532,9 @@ function payoutDeductPackageTaskScript() {
 }
 
 export default function scheduleTask() {
-    // scheduleWayuPayOutCheck()
+    scheduleWayuPayOutCheck()
     // logsClearFunc()
-    // migrateData()
+    migrateData()
     // payinScheduleTask()
     // payoutTaskScript()
     // payoutDeductPackageTaskScript()
