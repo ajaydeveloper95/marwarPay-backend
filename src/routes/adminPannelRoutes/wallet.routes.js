@@ -4,7 +4,7 @@ const router = express.Router();
 import { celebrate, Joi } from "celebrate";
 import { eWalletFundCredit, eWalletFundDebit, getAllTransactionEwallet, getAllTransactionUpi, getSettlementAmountAll, getSettlementAmountOne, getTransactionStatus, upiToEwallet } from "../../controllers/adminPannelControllers/wallet.controller.js";
 
-router.get("/getAllTransactionUpi", userVerify, getAllTransactionUpi);
+router.get("/getAllTransactionUpi",  getAllTransactionUpi);
 
 router.get("/getAllTransactionEwallet", userVerify, getAllTransactionEwallet);
 
