@@ -618,12 +618,12 @@ const loopMutex = new Mutex();
 // }
 
 function scheduleWayuPayOutCheck() {
-    cron.schedule('*/2 * * * * *', async () => {
+    cron.schedule('*/20 * * * * * *', async () => {
         const release = await transactionMutex.acquire();
         let GetData = await payOutModelGenerate.find({
             isSuccess: "Pending",
         })
-            .sort({ createdAt: -1 }).limit(10)
+            .sort({ createdAt: 1 }).limit(50)
         try {
             GetData.forEach(async (item) => {
                 await processWaayuPayOutFn(item)
@@ -654,7 +654,7 @@ async function processWaayuPayOutFn(item) {
     const { data } = await axios.post(uatUrl, postAdd, header);
     console.log("!!!!!!!!!!!!!!!!!!!!", data, "!!!!!!!!!!!!!!!!!!!!!")
     const session = await userDB.startSession({ readPreference: 'primary', readConcern: { level: "majority" }, writeConcern: { w: "majority" } });
-    // const release = await transactionMutex.acquire();
+    const release = await transactionMutex.acquire();
     try {
         session.startTransaction();
         const opts = { session };
@@ -741,12 +741,12 @@ async function processWaayuPayOutFn(item) {
         return false
     } finally {
         session.endSession();
-        // release()
+        release()
     }
 }
 
 function migrateData() {
-    cron.schedule('0,10 * * * *', async () => {
+    cron.schedule('0,20 * * * *', async () => {
         const release = await transactionMutex.acquire();
         try {
             console.log("Running cron job to migrate old data...");
@@ -1532,7 +1532,7 @@ function payoutDeductPackageTaskScript() {
 }
 
 export default function scheduleTask() {
-    scheduleWayuPayOutCheck()
+    // scheduleWayuPayOutCheck()
     // logsClearFunc()
     migrateData()
     // payinScheduleTask()
