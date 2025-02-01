@@ -1314,7 +1314,7 @@ export const iSmartPayCallback = asyncHandler(async (req, res) => {
     }
 })
 
-const customCallBackPayoutUser = async (userId, Body) => {
+export const customCallBackPayoutUser = async (userId, Body) => {
     let callBackPayout = Body;
     let data = { txnid: callBackPayout?.txnid, optxid: callBackPayout?.optxid, amount: callBackPayout?.amount, rrn: callBackPayout?.rrn, status: callBackPayout?.status }
 
