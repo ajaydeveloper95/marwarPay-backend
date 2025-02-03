@@ -1519,7 +1519,7 @@ export const flipzikpayCallback = asyncHandler(async (req, res) => {
 
         const { status, status_code, message, transaction_id, amount, bank_id, order_id, purpose, narration, currency, created_on, event_type, data } = req.body
 
-        let dataObject = { txnid: data?.object?.merchant_order_id, optxid: data?.object?.id, amount: Number(data?.object?.amount)/100, rrn: data?.object?.bank_reference_id, status: data.object?.status == "Success" ? "SUCCESS" : dataObject?.status }
+        let dataObject = { txnid: data?.object?.merchant_order_id, optxid: data?.object?.id, amount: Number(data?.object?.amount)/100, rrn: data?.object?.bank_reference_id, status: data.object?.status == "Success" ? "SUCCESS" : data.object?.status }
 
         // if (req.body.bank_id) {
         //     data = { txnid: callBackPayout?.ClientOrderId, optxid: callBackPayout?.OrderId, amount: callBackPayout?.Amount, rrn: callBackPayout?.UTR, status: (callBackPayout?.Status == 1) ? "SUCCESS" : "Pending" }
