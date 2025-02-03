@@ -527,15 +527,6 @@ export const generatePayment = async (req, res) => {
             case "impactpeaksoftwareApi":
             case "proconceptPayIn":
                 // store database
-                // if (true) {
-                //     let dataApiResponse = {
-                //         status_msg: "failed",
-                //         status: 400,
-                //         trxID: trxId,
-                //     }
-                //     console.log(user[0]?.payInApi)
-                //     return res.status(400).json({ message: "Failed", data: dataApiResponse })
-                // }
                 let proconceptPayload = {
                     authKey: process?.env?.proconceptKey,
                     orderid: trxId,
@@ -553,7 +544,6 @@ export const generatePayment = async (req, res) => {
                     // Banking Api
                     let API_URL = user[0]?.payInApi?.apiURL
                     let bank = await axios.post(API_URL, proconceptPayload, proconceptHeader);
-                    console.log(bank?.data)
                     let dataApiResponse = {
                         status_msg: bank?.data?.status_msg,
                         status: bank?.data?.status_code,
@@ -718,7 +708,7 @@ export const generatePayment = async (req, res) => {
                 return res.status(400).json({ message: "Failed", data: dataApiResponse })
         }
     } catch (error) {
-        console.log("error==>", error.message);
+        // console.log("error==>", error.message);
         return res.status(400).json({ message: "Failed", data: "Server Side Problem !" })
     }
 
