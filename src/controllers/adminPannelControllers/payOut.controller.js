@@ -431,7 +431,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
         const requestData = JSON.stringify({
             "address": "NOIDA SECTOR-12",
             "payment_type": 3,
-            "amount": BodyObj.amount,
+            "amount": Number(BodyObj.amount)*100,
             "name": BodyObj.beneName,
             "email": "abc@gmail.com",
             "mobile_number": BodyObj.benePhoneNo,
