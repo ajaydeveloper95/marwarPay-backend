@@ -12,9 +12,12 @@ import { Mutex } from "async-mutex";
 // import { getPaginationArray } from "../../utils/helpers.js";
 import mongoose from "mongoose";
 import { Parser } from "json2csv";
+import crypto from "crypto";
+
 
 const genPayoutMutex = new Mutex();
 const iSmartMutex = new Mutex();
+const flipzikMutex= new Mutex();
 
 export const allPayOutPayment = asyncHandler(async (req, res) => {
     let { page = 1, limit = 25, keyword = "", startDate, endDate, memberId, status, export: exportToCSV } = req.query;
@@ -182,6 +185,12 @@ export const allPayOutPayment = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed", data: `Internal Server Error: ${err.message}` });
     }
 });
+
+function generateSignature(timestamp, body, path, queryString = '', method = 'POST') {
+    const hmac = crypto.createHmac('sha512', process.env.FLIPZIK_SECRET_KEY);
+    hmac.update(method + "\n" + path + "\n" + queryString + "\n" + body + "\n" + timestamp + "\n");
+    return hmac.digest('hex');
+}
 
 export const allPayOutPaymentSuccess = asyncHandler(async (req, res) => {
     let { page = 1, limit = 25, keyword = "", startDate, endDate } = req.query;
@@ -417,6 +426,23 @@ export const generatePayOut = asyncHandler(async (req, res) => {
             custIpAddress: "110.235.219.55",
             beneBankName: bankName
         }
+
+        
+        const requestData = JSON.stringify({
+            "address": "NOIDA SECTOR-12",
+            "payment_type": 3,
+            "amount": BodyObj.amount,
+            "name": BodyObj.beneName,
+            "email": "abc@gmail.com",
+            "mobile_number": BodyObj.benePhoneNo,
+            "account_number": BodyObj.beneAccountNo,
+            "ifsc_code": BodyObj.beneifsc,
+            "merchant_order_id": BodyObj.clientReferenceNo
+        });
+        const timestamp = Date.now().toString();
+        const path = "/api/v1/payout/process";
+        const signature = generateSignature(timestamp, requestData, path, '', 'POST');
+
         const headerSecrets = await AESUtils.EncryptRequest(HeaderObj, process.env.ENC_KEY)
         const BodyRequestEnc = await AESUtils.EncryptRequest(BodyObj, process.env.ENC_KEY)
 
@@ -973,6 +999,117 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                     }
 
                 }
+            },
+            flipzikPayoutApi: {
+                url: payOutApi.apiURL,
+                headers: {
+                    "access_key": process.env.FLIPZIK_ACCESS_KEY,
+                    "signature": signature,
+                    "X-Timestamp": timestamp,
+                    "Content-Type": "application/json"
+                },
+                data: requestData,
+                res: async (apiResponse) => {
+                    // const { statusCode, status, message, orderId, utr, clientOrderId, data, success } = apiResponse;
+                    const { statusCode, data, success } = apiResponse;
+                    if (!success) {
+                        return res.status(400).json({ message: "Failed", data: `Bank server is down.` });
+                    }
+
+                    if (data.status === "Success" && data.master_status === "Success") {
+                        // If successful, store the payout data
+                        let payoutDataStore = {
+                            memberId: user?._id,
+                            amount: amount,
+                            chargeAmount: chargeAmount,
+                            finalAmount: finalAmountDeduct,
+                            bankRRN: data.bank_reference_id,
+                            trxId: data.merchant_order_id,
+                            optxId: data.id,
+                            isSuccess: "Success"
+                        }
+                        await payOutModel.create(payoutDataStore);
+                        payOutModelGen.isSuccess = "Success"
+                        await payOutModelGen.save()
+
+                        // Call back to notify the user
+                        let callBackBody = {
+                            optxid: data.id,
+                            status: "SUCCESS",
+                            txnid: data.merchant_order_id,
+                            amount: amount,
+                            rrn: data.bank_reference_id,
+                        }
+
+                        customCallBackPayoutUser(user?._id, callBackBody)
+
+                        let userRespSend = {
+                            statusCode: statusCode || 0,
+                            status: data?.status || 0,
+                            trxId: data?.merchant_order_id || 0,
+                            opt_msg: data?.acquirer_message || "null"
+                        }
+                        return new ApiResponse(200, userRespSend)
+                    } else {
+                        const release = await genPayoutMutex.acquire();
+                        const walletAddsession = await userDB.startSession();
+                        const transactionOptions = {
+                            readConcern: { level: 'linearizable' },
+                            writeConcern: { w: 'majority' },
+                            readPreference: { mode: 'primary' },
+                            maxTimeMS: 1500
+                        };
+                        // Handle failure: update wallet and store e-wallet transaction
+                        try {
+                            walletAddsession.startTransaction(transactionOptions);
+                            const opts = { walletAddsession };
+
+                            // update wallet 
+                            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct } }, {
+                                returnDocument: 'after',
+                                walletAddsession
+                            })
+
+                            let afterAmount = userWallet?.EwalletBalance
+                            let beforeAmount = userWallet?.EwalletBalance - finalAmountDeduct;
+
+                            // ewallet store 
+                            let walletModelDataStore = {
+                                memberId: user?._id,
+                                transactionType: "Cr.",
+                                transactionAmount: amount,
+                                beforeAmount: beforeAmount,
+                                chargeAmount: chargeAmount,
+                                afterAmount: afterAmount,
+                                description: `Successfully Cr. amount: ${Number(finalAmountDeduct)} with transaction Id: ${trxId}`,
+                                transactionStatus: "Success",
+                            }
+
+                            await walletModel.create([walletModelDataStore], opts)
+                            // Commit the transaction
+                            await walletAddsession.commitTransaction();
+                            // console.log('Transaction committed successfully');
+                        } catch (error) {
+                            console.log(error)
+                            await walletAddsession.abortTransaction();
+                            // console.error('Transaction aborted due to error:', error);
+                        }
+                        finally {
+                            walletAddsession.endSession();
+                            release()
+                        }
+
+                        payOutModelGen.isSuccess = "Failed"
+                        await await payOutModelGen.save()
+                        let userRespSend2 = {
+                            statusCode: statusCode || 0,
+                            status: data?.status || 0,
+                            trxId: trxId || 0,
+                            opt_msg: data?.acquirer_message || "null"
+                        }
+                        return { message: "Failed", data: userRespSend2 }
+                    }
+                }
             }
         };
 
@@ -1349,3 +1486,169 @@ export const customCallBackPayoutUser = async (userId, Body) => {
     }
     return true
 }
+
+export const flipzikpayCallback = asyncHandler(async (req, res) => {
+    const release = await flipzikMutex.acquire()
+    try {
+        // const signatureHeader = req.headers['signature'];
+        // if (!signatureHeader) {
+        //     return res.status(400).json({ error: "Missing signature header" });
+        // }
+        // const parts = signatureHeader.split(',').reduce((acc, part) => {
+        //     const [key, value] = part.split('=');
+        //     acc[key] = value;
+        //     return acc;
+        // }, {});
+
+        // const timestamp = parts['t'];
+        // const receivedSignature = parts['v0'];
+
+        // if (!timestamp || !receivedSignature) {
+        //     return res.status(400).json({ error: "Invalid signature format" });
+        // }
+
+        // const bodyString = JSON.stringify(req.body);
+        // const expectedSignature = crypto.createHmac('sha256', SECRET).update(`${timestamp}.${bodyString}`).digest('hex');;
+
+        // console.log(receivedSignature)
+        // console.log(expectedSignature)
+
+        // if (!crypto.timingSafeEqual(Buffer.from(receivedSignature, 'hex'), Buffer.from(expectedSignature, 'hex'))) {
+        //     return res.status(401).json({ error: "Invalid signature" });
+        // }
+
+        const { status, status_code, message, transaction_id, amount, bank_id, order_id, purpose, narration, currency, created_on, event_type, data } = req.body
+
+        let dataObject = { txnid: data?.object?.merchant_order_id, optxid: data?.object?.id, amount: data?.object?.amount, rrn: data?.object?.bank_reference_id, status: data.object?.status == "Success" ? "SUCCESS" : dataObject?.status }
+
+        // if (req.body.bank_id) {
+        //     data = { txnid: callBackPayout?.ClientOrderId, optxid: callBackPayout?.OrderId, amount: callBackPayout?.Amount, rrn: callBackPayout?.UTR, status: (callBackPayout?.Status == 1) ? "SUCCESS" : "Pending" }
+        // }
+
+        if (event_type != "payout.txn_succeeded") {
+            return res.status(400).json({ succes: "Failed", message: data?.object?.acquirer_message })
+        }
+
+        let getDocoment = await payOutModelGenerate.findOne({ trxId: dataObject?.txnid });
+
+        if (getDocoment?.isSuccess === "Success" || "Failed") {
+            let userCallBackResp = await callBackResponse.aggregate([{ $match: { memberId: getDocoment.memberId } }]);
+
+            let payOutUserCallBackURL = userCallBackResp[0]?.payOutCallBackUrl;
+            const config = {
+                headers: {
+                    // 'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                }
+            };
+
+            let shareObjData = {
+                status: dataObject?.status ? "SUCCESS" : "Failed",
+                txnid: dataObject?.txnid,
+                optxid: dataObject?.optxid,
+                amount: dataObject?.amount,
+                rrn: dataObject?.rrn
+            }
+
+            try {
+                await axios.post(payOutUserCallBackURL, shareObjData, config)
+            } catch (error) {
+                return true
+            }
+            if (res) {
+                return res.status(200).json({ message: "Failed", data: `Trx Status Already ${getDocoment?.isSuccess}` })
+            }
+            return true
+        }
+
+        if (getDocoment && dataObject?.rrn && getDocoment?.isSuccess === "Pending") {
+            getDocoment.isSuccess = "Success"
+            await getDocoment.save();
+
+            let userInfo = await userDB.aggregate([{ $match: { _id: getDocoment?.memberId } }, { $lookup: { from: "payoutswitches", localField: "payOutApi", foreignField: "_id", as: "payOutApi" } }, {
+                $unwind: {
+                    path: "$payOutApi",
+                    preserveNullAndEmptyArrays: true,
+                }
+            }, {
+                $project: { "_id": 1, "userName": 1, "memberId": 1, "fullName": 1, "trxPassword": 1, "EwalletBalance": 1, "createdAt": 1, "payOutApi._id": 1, "payOutApi.apiName": 1, "payOutApi.apiURL": 1, "payOutApi.isActive": 1 }
+            }]);
+
+            let chargePaymentGatway = getDocoment?.gatwayCharge;
+            let mainAmount = getDocoment?.amount;
+
+            let userWalletInfo = await userDB.findById(userInfo[0]?._id, "_id EwalletBalance");
+            let beforeAmountUser = userWalletInfo.EwalletBalance;
+            let finalEwalletDeducted = mainAmount + chargePaymentGatway;
+
+            let walletModelDataStore = {
+                memberId: userWalletInfo._id,
+                transactionType: "Dr.",
+                transactionAmount: dataObject?.amount,
+                beforeAmount: beforeAmountUser,
+                chargeAmount: chargePaymentGatway,
+                afterAmount: beforeAmountUser - finalEwalletDeducted,
+                description: `Successfully Dr. amount: ${finalEwalletDeducted}`,
+                transactionStatus: "Success",
+            }
+
+            // userWalletInfo.EwalletBalance -= finalEwalletDeducted
+            // await userWalletInfo.save();
+            await userDB.findByIdAndUpdate(userInfo[0]?._id,
+                { $inc: { EwalletBalance: -finalEwalletDeducted } }
+            );
+
+            let storeTrx = await walletModel.create(walletModelDataStore)
+
+            let payoutDataStore = {
+                memberId: getDocoment?.memberId,
+                amount: mainAmount,
+                chargeAmount: chargePaymentGatway,
+                finalAmount: finalEwalletDeducted,
+                bankRRN: dataObject?.rrn,
+                trxId: dataObject?.txnid,
+                optxId: dataObject?.optxid,
+                isSuccess: "Success"
+            }
+
+            await payOutModel.create(payoutDataStore)
+            let userCallBackResp = await callBackResponse.aggregate([{ $match: { memberId: userInfo[0]?._id } }]);
+
+            if (userCallBackResp.length !== 1) {
+                return res.status(400).json({ message: "Failed", data: "User have multiple callback Url or Not Found !" })
+            }
+
+            let payOutUserCallBackURL = userCallBackResp[0]?.payOutCallBackUrl;
+            const config = {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            };
+
+            let shareObjData = {
+                status: dataObject?.status,
+                txnid: dataObject?.txnid,
+                optxid: dataObject?.optxid,
+                amount: dataObject?.amount,
+                rrn: dataObject?.rrn
+            }
+
+            try {
+                await axios.post(payOutUserCallBackURL, shareObjData, config)
+            } catch (error) {
+                return
+            }
+            if (res) {
+                return res.status(200).json(new ApiResponse(200, null, "Successfully !"))
+            }
+            return
+
+        } else {
+            return res.status(400).json({ message: "Failed", data: "Trx Id and user not Found !" })
+        }
+    } catch (error) {
+        console.log(error)
+    } finally {
+        release()
+    }
+})
