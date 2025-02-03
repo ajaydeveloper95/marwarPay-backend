@@ -17,7 +17,7 @@ import crypto from "crypto";
 
 const genPayoutMutex = new Mutex();
 const iSmartMutex = new Mutex();
-const flipzikMutex= new Mutex();
+const flipzikMutex = new Mutex();
 
 export const allPayOutPayment = asyncHandler(async (req, res) => {
     let { page = 1, limit = 25, keyword = "", startDate, endDate, memberId, status, export: exportToCSV } = req.query;
@@ -427,11 +427,11 @@ export const generatePayOut = asyncHandler(async (req, res) => {
             beneBankName: bankName
         }
 
-        
+
         const requestData = JSON.stringify({
             "address": "NOIDA SECTOR-12",
             "payment_type": 3,
-            "amount": Number(BodyObj.amount)*100,
+            "amount": Number(BodyObj.amount) * 100,
             "name": BodyObj.beneName,
             "email": "abc@gmail.com",
             "mobile_number": BodyObj.benePhoneNo,
@@ -1090,7 +1090,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             await walletAddsession.commitTransaction();
                             // console.log('Transaction committed successfully');
                         } catch (error) {
-                            console.log(error)
+                            console.log("inside error:", error.message)
                             await walletAddsession.abortTransaction();
                             // console.error('Transaction aborted due to error:', error);
                         }
@@ -1127,6 +1127,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
     } catch (error) {
         const errorMsg = error.code === 11000 ? "Duplicate key error!" : error.message;
         return res.status(400).json({ message: "Failed", data: errorMsg });
+        console.log("outside error:", error.message)
     }
     // finally {
     //     release();
@@ -1519,7 +1520,7 @@ export const flipzikpayCallback = asyncHandler(async (req, res) => {
 
         const { status, status_code, message, transaction_id, amount, bank_id, order_id, purpose, narration, currency, created_on, event_type, data } = req.body
 
-        let dataObject = { txnid: data?.object?.merchant_order_id, optxid: data?.object?.id, amount: Number(data?.object?.amount)/100, rrn: data?.object?.bank_reference_id, status: data.object?.status == "Success" ? "SUCCESS" : data.object?.status }
+        let dataObject = { txnid: data?.object?.merchant_order_id, optxid: data?.object?.id, amount: Number(data?.object?.amount) / 100, rrn: data?.object?.bank_reference_id, status: data.object?.status == "Success" ? "SUCCESS" : data.object?.status }
 
         // if (req.body.bank_id) {
         //     data = { txnid: callBackPayout?.ClientOrderId, optxid: callBackPayout?.OrderId, amount: callBackPayout?.Amount, rrn: callBackPayout?.UTR, status: (callBackPayout?.Status == 1) ? "SUCCESS" : "Pending" }
