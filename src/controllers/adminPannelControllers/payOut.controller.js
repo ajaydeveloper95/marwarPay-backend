@@ -1012,6 +1012,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                 res: async (apiResponse) => {
                     // const { statusCode, status, message, orderId, utr, clientOrderId, data, success } = apiResponse;
                     const { statusCode, data, success } = apiResponse;
+                    console.log("response body from flipzik>>", JSON.parse(JSON.stringify(apiResponse)))
                     if (!success) {
                         return res.status(400).json({ message: "Failed", data: `Bank server is down.` });
                     }
