@@ -1295,8 +1295,6 @@ export const callBackProconcept = asyncHandler(async (req, res) => {
             TxnCompletionDate: callBackData?.TxnCompletionDate
         };
 
-        console.log(data)
-
         if (data?.status != 200) {
             return res.status(400).json({ message: "Failed", data: "Transaction is pending or not successful" });
         }
