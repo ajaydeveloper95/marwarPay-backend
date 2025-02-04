@@ -525,6 +525,41 @@ export const generatePayment = async (req, res) => {
                 })
                 break;
             case "impactpeaksoftwareApi":
+                // store database
+                await qrGenerationModel.create({ memberId: user[0]?._id, name, amount, trxId }).then(async (data) => {
+                    // Banking Api
+                    let API_URL = `https://impactpeaksoftware.in/portal/api/generateQrAuth?memberid=IMPSAPI837165&txnpwd=8156&name=${name}&mobile=${mobileNumber}&amount=${amount}&txnid=${trxId}`
+                    let bank = await axios.get(API_URL);
+
+                    let dataApiResponse = {
+                        status_msg: bank?.data?.status_msg,
+                        status: bank?.data?.status_code,
+                        qrImage: bank?.data?.qr_image,
+                        qr: bank?.data?.intent,
+                        trxID: data?.trxId,
+                    }
+
+                    if (bank?.data?.status_code !== 200) {
+                        data.callBackStatus = "Failed";
+                        await data.save();
+                        return res.status(400).json({ message: "Failed", data: dataApiResponse })
+                    } else {
+                        data.qrData = bank?.data?.qr_image;
+                        data.qrIntent = bank?.data?.intent;
+                        data.refId = bank?.data?.refId;
+                        await data.save();
+                    }
+
+                    // Send response
+                    return res.status(200).json(new ApiResponse(200, dataApiResponse))
+                }).catch((error) => {
+                    if (error.code == 11000) {
+                        return res.status(500).json({ message: "Failed", data: "trx Id duplicate Find !" })
+                    } else {
+                        return res.status(500).json({ message: "Failed", data: error.message || "Internel Server Error !" })
+                    }
+                })
+                break;
             case "proconceptPayIn":
                 // store database
                 let proconceptPayload = {
@@ -558,7 +593,7 @@ export const generatePayment = async (req, res) => {
                         return res.status(400).json({ message: "Failed", data: dataApiResponse })
                     } else {
                         data.qrData = bank?.data?.qr_image;
-                        data.qrIntent = bank?.data?.intent;
+                        data.qrIntent = bank?.data?.Intent;
                         data.refId = bank?.data?.refId;
                         await data.save();
                     }
