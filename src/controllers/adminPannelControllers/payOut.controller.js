@@ -1228,8 +1228,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
             }
         };
 
-        const apiResponse = await performPayoutApiCall(payOutApi, apiConfig);
-        console.log("response", apiResponse)
+        const apiResponse = await performPayoutApiCall(payOutApi, apiConfig); 
         if (!apiResponse || typeof apiResponse != "object") {
             payOutModelGen.isSuccess = "Failed";
             await payOutModelGen.save();
@@ -1240,8 +1239,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
 
         return res.status(200).json(response);
     } catch (error) {
-        const errorMsg = error.code === 11000 ? "Duplicate key error!" : error.message;
-        console.log("outside error:", error)
+        const errorMsg = error.code === 11000 ? "Duplicate key error!" : error.message; 
         return res.status(400).json({ message: "Failed", data: errorMsg });
     }
     // finally {
