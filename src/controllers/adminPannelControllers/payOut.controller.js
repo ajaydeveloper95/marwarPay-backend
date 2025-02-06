@@ -1138,9 +1138,9 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                         trxId: OrderId || 0,
                         opt_msg: Message || "null"
                     }
-                    if (Statuscode != 200) {
-                        return new ApiResponse(200, userRespSend);
-                    }
+                    // if (Statuscode != 200) {
+                    //     return new ApiResponse(200, userRespSend);
+                    // }
 
                     if (Status === "SUCCESS") {
                         // If successful, store the payout data
