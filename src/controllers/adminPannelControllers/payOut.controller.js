@@ -625,12 +625,56 @@ export const generatePayOut = asyncHandler(async (req, res) => {
 
                 }
             },
-            MarwarpayApi: {
+            ImpactPeekSoftwareApi: {
                 url: payOutApi.apiURL,
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 data: {
                     txnID: trxId, amount, ifsc: ifscCode, account_no: accountNumber,
                     account_holder_name: accountHolderName, mobile: mobileNumber, response_type: 1
+                },
+                res: async (apiResponse) => {
+                    const { status_code, status_msg, status, txn_amount, txnid, rrn, orderID, opt_msg } = apiResponse;
+
+                    if (status === "SUCCESS") {
+                        let payoutDataStore = {
+                            memberId: user?._id,
+                            amount: txn_amount,
+                            chargeAmount: chargeAmount,
+                            finalAmount: finalAmountDeduct,
+                            bankRRN: rrn,
+                            trxId: txnid,
+                            optxId: orderID,
+                            isSuccess: "Success"
+                        }
+                        await payOutModel.create(payoutDataStore);
+                        payOutModelGen.isSuccess = "Success"
+                        await payOutModelGen.save()
+                        let callBackBody = {
+                            optxid: orderID,
+                            status: "SUCCESS",
+                            txnid: txnid,
+                            amount: txn_amount,
+                            rrn: rrn,
+                        }
+
+                        customCallBackPayoutUser(user?._id, callBackBody)
+
+                        let userREspSend = {
+                            statusCode: status_code,
+                            status: status === "SUCCESS" ? 1 : 2,
+                            trxId: trxId || 0,
+                            opt_msg: opt_msg || "null"
+                        }
+                        return new ApiResponse(200, userREspSend)
+                    } else {
+                        let userREspSend = {
+                            statusCode: status_code,
+                            status: status !== "FAILED" ? 2 : -2,
+                            trxId: trxId || 0,
+                            opt_msg: opt_msg || "Payout initiated, awaiting response from banking side."
+                        }
+                        return new ApiResponse(200, userREspSend)
+                    }
                 }
             },
             waayupayPayOutApi: {
@@ -1193,6 +1237,135 @@ export const payoutCallBackResponse = asyncHandler(async (req, res) => {
         if (req.body.UTR) {
             data = { txnid: callBackPayout?.ClientOrderId, optxid: callBackPayout?.OrderId, amount: callBackPayout?.Amount, rrn: callBackPayout?.UTR, status: (callBackPayout?.Status == 1) ? "SUCCESS" : "Pending" }
         }
+
+        if (data.status != "SUCCESS") {
+            return res.status(400).json({ succes: "Failed", message: "Payment Failed Operator Side !" })
+        }
+
+        let getDocoment = await payOutModelGenerate.findOne({ trxId: data?.txnid });
+
+        if (getDocoment?.isSuccess === "Success" || "Failed") {
+            let userCallBackResp = await callBackResponse.aggregate([{ $match: { memberId: getDocoment.memberId } }]);
+
+            let payOutUserCallBackURL = userCallBackResp[0]?.payOutCallBackUrl;
+            const config = {
+                headers: {
+                    // 'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                }
+            };
+
+            let shareObjData = {
+                status: data?.status,
+                txnid: data?.txnid,
+                optxid: data?.optxid,
+                amount: data?.amount,
+                rrn: data?.rrn
+            }
+
+            try {
+                await axios.post(payOutUserCallBackURL, shareObjData, config)
+            } catch (error) {
+                return
+            }
+            if (res) {
+                return res.status(200).json({ message: "Failed", data: `Trx Status Already ${getDocoment?.isSuccess}` })
+            }
+            return
+        }
+
+        if (getDocoment && data?.rrn && getDocoment?.isSuccess === "Pending") {
+            getDocoment.isSuccess = "Success"
+            await getDocoment.save();
+
+            let userInfo = await userDB.aggregate([{ $match: { _id: getDocoment?.memberId } }, { $lookup: { from: "payoutswitches", localField: "payOutApi", foreignField: "_id", as: "payOutApi" } }, {
+                $unwind: {
+                    path: "$payOutApi",
+                    preserveNullAndEmptyArrays: true,
+                }
+            }, {
+                $project: { "_id": 1, "userName": 1, "memberId": 1, "fullName": 1, "trxPassword": 1, "EwalletBalance": 1, "createdAt": 1, "payOutApi._id": 1, "payOutApi.apiName": 1, "payOutApi.apiURL": 1, "payOutApi.isActive": 1 }
+            }]);
+
+            let chargePaymentGatway = getDocoment?.gatwayCharge;
+            let mainAmount = getDocoment?.amount;
+
+            let userWalletInfo = await userDB.findById(userInfo[0]?._id, "_id EwalletBalance");
+            let beforeAmountUser = userWalletInfo.EwalletBalance;
+            let finalEwalletDeducted = mainAmount + chargePaymentGatway;
+
+            let walletModelDataStore = {
+                memberId: userWalletInfo._id,
+                transactionType: "Dr.",
+                transactionAmount: data?.amount,
+                beforeAmount: beforeAmountUser,
+                chargeAmount: chargePaymentGatway,
+                afterAmount: beforeAmountUser - finalEwalletDeducted,
+                description: `Successfully Dr. amount: ${finalEwalletDeducted}`,
+                transactionStatus: "Success",
+            }
+
+            userWalletInfo.EwalletBalance -= finalEwalletDeducted
+            await userWalletInfo.save();
+
+            let storeTrx = await walletModel.create(walletModelDataStore)
+
+            let payoutDataStore = {
+                memberId: getDocoment?.memberId,
+                amount: mainAmount,
+                chargeAmount: chargePaymentGatway,
+                finalAmount: finalEwalletDeducted,
+                bankRRN: data?.rrn,
+                trxId: data?.txnid,
+                optxId: data?.optxid,
+                isSuccess: "Success"
+            }
+
+            await payOutModel.create(payoutDataStore)
+            let userCallBackResp = await callBackResponse.aggregate([{ $match: { memberId: userInfo[0]?._id } }]);
+
+            if (userCallBackResp.length !== 1) {
+                return res.status(400).json({ message: "Failed", data: "User have multiple callback Url or Not Found !" })
+            }
+
+            let payOutUserCallBackURL = userCallBackResp[0]?.payOutCallBackUrl;
+            const config = {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            };
+
+            let shareObjData = {
+                status: data?.status,
+                txnid: data?.txnid,
+                optxid: data?.optxid,
+                amount: data?.amount,
+                rrn: data?.rrn
+            }
+
+            try {
+                await axios.post(payOutUserCallBackURL, shareObjData, config)
+            } catch (error) {
+                return
+            }
+            if (res) {
+                return res.status(200).json(new ApiResponse(200, null, "Successfully !"))
+            }
+            return
+
+        } else {
+            return res.status(400).json({ message: "Failed", data: "Trx Id and user not Found !" })
+        }
+    } catch (error) {
+        console.log(error)
+        return res.status(400).json({ message: "Failed", data: "Internal server error !" })
+    }
+});
+
+export const payoutCallBackImpactPeek = asyncHandler(async (req, res) => {
+    try {
+        let callBackPayout = req.body;
+        let data = { txnid: callBackPayout?.txnid, optxid: callBackPayout?.optxid, amount: callBackPayout?.amount, rrn: callBackPayout?.rrn, status: callBackPayout?.status }
 
         if (data.status != "SUCCESS") {
             return res.status(400).json({ succes: "Failed", message: "Payment Failed Operator Side !" })
