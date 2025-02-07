@@ -493,7 +493,7 @@ export const generatePayment = async (req, res) => {
                 formData.append("mobile", mobileNumber)
 
                 // store database
-                await qrGenerationModel.create({ memberId: user[0]?._id, name, amount, trxId }).then(async (data) => {
+                await qrGenerationModel.create({ memberId: user[0]?._id, name, amount, trxId, pannelUse: apiSwitchApiOption }).then(async (data) => {
                     // Bankking api calling !
                     let resp = await axios.post(url, formData)
 
@@ -526,7 +526,7 @@ export const generatePayment = async (req, res) => {
                 break;
             case "impactpeaksoftwareApi":
                 // store database
-                await qrGenerationModel.create({ memberId: user[0]?._id, name, amount, trxId }).then(async (data) => {
+                await qrGenerationModel.create({ memberId: user[0]?._id, name, amount, trxId, pannelUse: apiSwitchApiOption }).then(async (data) => {
                     // Banking Api
                     let API_URL = `https://impactpeaksoftware.in/portal/api/generateQrAuth?memberid=IMPSAPI837165&txnpwd=8156&name=${name}&mobile=${mobileNumber}&amount=${amount}&txnid=${trxId}`
                     let bank = await axios.get(API_URL);
@@ -575,7 +575,7 @@ export const generatePayment = async (req, res) => {
                     }
                 }
 
-                await qrGenerationModel.create({ memberId: user[0]?._id, name, amount, trxId }).then(async (data) => {
+                await qrGenerationModel.create({ memberId: user[0]?._id, name, amount, trxId, pannelUse: apiSwitchApiOption }).then(async (data) => {
                     // Banking Api
                     let API_URL = user[0]?.payInApi?.apiURL
                     let bank = await axios.post(API_URL, proconceptPayload, proconceptHeader);
@@ -615,6 +615,7 @@ export const generatePayment = async (req, res) => {
                         name,
                         amount,
                         trxId,
+                        pannelUse: apiSwitchApiOption
                     });
 
                     const rzOptions = {
@@ -676,6 +677,7 @@ export const generatePayment = async (req, res) => {
                         name,
                         amount,
                         trxId,
+                        pannelUse: apiSwitchApiOption
                     });
                     const iSmartPayUrl = process.env.ISMART_PAY_PAYIN_URL
                     // const iSmartPayload = {

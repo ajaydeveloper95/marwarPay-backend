@@ -347,7 +347,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
 
         const payOutModelGen = await payOutModelGenerate.create({
             memberId: user._id, mobileNumber, accountHolderName, accountNumber, ifscCode,
-            amount, gatwayCharge: chargeAmount, afterChargeAmount: finalAmountDeduct, trxId
+            amount, gatwayCharge: chargeAmount, afterChargeAmount: finalAmountDeduct, trxId, pannelUse: payOutApi?.apiName
         });
 
         const release = await genPayoutMutex.acquire();
@@ -1178,7 +1178,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                         RRN } = apiResponse;
                     let userRespSend = {
                         statusCode: Statuscode == 200 ? 1 : 0 || 0,
-                        status: Status=="SUCCESS" ? 1 : 0 || 0,
+                        status: Status == "SUCCESS" ? 1 : 0 || 0,
                         trxId: OrderId || 0,
                         opt_msg: Message || "null"
                     }
@@ -1265,14 +1265,14 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                         }
 
                         payOutModelGen.isSuccess = "Failed"
-                        await await payOutModelGen.save() 
+                        await await payOutModelGen.save()
                         return { message: "Failed", data: userRespSend }
                     }
                 }
             }
         };
 
-        const apiResponse = await performPayoutApiCall(payOutApi, apiConfig); 
+        const apiResponse = await performPayoutApiCall(payOutApi, apiConfig);
         if (!apiResponse || typeof apiResponse != "object") {
             payOutModelGen.isSuccess = "Failed";
             await payOutModelGen.save();
@@ -1283,7 +1283,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
 
         return res.status(200).json(response);
     } catch (error) {
-        const errorMsg = error.code === 11000 ? "Duplicate key error!" : error.message; 
+        const errorMsg = error.code === 11000 ? "Duplicate key error!" : error.message;
         return res.status(400).json({ message: "Failed", data: errorMsg });
     }
     // finally {
