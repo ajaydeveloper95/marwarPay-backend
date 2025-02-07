@@ -657,12 +657,12 @@ const loopMutex = new Mutex();
 // }
 
 function scheduleWayuPayOutCheck() {
-    cron.schedule('*/20 * * * * * *', async () => {
+    cron.schedule('*/59 * * * * * *', async () => {
         const release = await transactionMutex.acquire();
         let GetData = await payOutModelGenerate.find({
             isSuccess: "Pending",
         })
-            .sort({ createdAt: 1 }).limit(50)
+            .sort({ createdAt: 1 }).limit(150)
         try {
             GetData.forEach(async (item) => {
                 await processWaayuPayOutFn(item)
@@ -738,7 +738,7 @@ async function processWaayuPayOutFn(item) {
 
             return true;
         }
-        else if (data?.status === 4 || data?.status === 0 || data?.status === 2 || data?.status === null) {
+        else if (data?.status === 4 || data?.status === 0 || data?.status === 2) {
             // trx is falied and update the status
             let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(item?._id, { isSuccess: "Failed" }, { session, new: true });
             console.log(payoutModelData?.trxId, "with falied")
@@ -1689,7 +1689,7 @@ async function FailedTOsuccessHelp(item) {
 
 export default function scheduleTask() {
     // FailedToSuccessPayout()
-    // scheduleWayuPayOutCheck()
+    scheduleWayuPayOutCheck()
     // logsClearFunc()
     // migrateData()
     // payinScheduleTask()

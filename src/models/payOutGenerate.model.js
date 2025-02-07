@@ -26,6 +26,9 @@ const payOutSchemaGen = new Schema({
         type: Number,
         required: [true, "Required Amount !"]
     },
+    pannelUse: {
+        type: String,
+    },
     gatwayCharge: {
         type: Number,
         required: [true, "Required getway chage amount !"]

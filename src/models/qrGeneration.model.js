@@ -16,6 +16,9 @@ const qrGenerationSchema = new Schema({
     refId: {
         type: String,
     },
+    pannelUse: {
+        type: String,
+    },
     amount: {
         type: Number,
         required: [true, "Required Amount !"]
