@@ -1940,3 +1940,8 @@ export const flipzikpayCallback = asyncHandler(async (req, res) => {
         release()
     }
 })
+
+
+export const procenceptCallback = asyncHandler(async (req, res) => {
+    console.log(req.body)
+})
