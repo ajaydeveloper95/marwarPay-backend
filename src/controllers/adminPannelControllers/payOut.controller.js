@@ -1056,9 +1056,8 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                 res: async (apiResponse) => {
                     // const { statusCode, status, message, orderId, utr, clientOrderId, data, success } = apiResponse;
                     const { statusCode, data, success } = apiResponse;
-                    console.log("response body from flipzik>>", JSON.parse(JSON.stringify(apiResponse)))
                     if (!success) {
-                        return res.status(400).json({ message: "Failed", data: `Bank server is down.` });
+                        return { message: "Failed", data: `Bank server is down.` };
                     }
 
                     if (data.status === "Success" && data.master_status === "Success") {
@@ -1068,9 +1067,9 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             amount: amount,
                             chargeAmount: chargeAmount,
                             finalAmount: finalAmountDeduct,
-                            bankRRN: data.bank_reference_id,
-                            trxId: data.merchant_order_id,
-                            optxId: data.id,
+                            bankRRN: String(data.bank_reference_id),
+                            trxId: String(data.merchant_order_id),
+                            optxId: String(data.id),
                             isSuccess: "Success"
                         }
                         await payOutModel.create(payoutDataStore);
@@ -1079,11 +1078,11 @@ export const generatePayOut = asyncHandler(async (req, res) => {
 
                         // Call back to notify the user
                         let callBackBody = {
-                            optxid: data.id,
+                            optxid: String(data.id),
                             status: "SUCCESS",
-                            txnid: data.merchant_order_id,
+                            txnid: String(data.merchant_order_id),
                             amount: amount,
-                            rrn: data.bank_reference_id,
+                            rrn: String(data.bank_reference_id),
                         }
 
                         customCallBackPayoutUser(user?._id, callBackBody)
@@ -1091,8 +1090,8 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                         let userRespSend = {
                             statusCode: statusCode || 0,
                             status: data?.status || 0,
-                            trxId: data?.merchant_order_id || 0,
-                            opt_msg: data?.acquirer_message || "null"
+                            trxId: String(data?.merchant_order_id) || 0,
+                            opt_msg: String(data?.acquirer_message) || "null"
                         }
                         return new ApiResponse(200, userRespSend)
                     } else {
@@ -1155,11 +1154,125 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                         return { message: "Failed", data: userRespSend2 }
                     }
                 }
+            },
+            proConceptPayoutApi: {
+                url: payOutApi.apiURL,
+                headers: {
+                    "AuthKey": process.env.proconceptKey,
+                    "Content-Type": "application/json"
+                },
+                data: {
+                    "Mobile": String(mobileNumber),
+                    "AccountName": accountHolderName,
+                    "AccountNo": accountNumber,
+                    "Amount": amount,
+                    "OrderId": trxId,
+                    "IFSC": ifscCode
+                },
+                res: async (apiResponse) => {
+                    // const { statusCode, status, message, orderId, utr, clientOrderId, data, success } = apiResponse;
+                    const { Statuscode,
+                        Message,
+                        Status,
+                        OrderId,
+                        RRN } = apiResponse;
+                    let userRespSend = {
+                        statusCode: Statuscode == 200 ? 1 : 0 || 0,
+                        status: Status=="SUCCESS" ? 1 : 0 || 0,
+                        trxId: OrderId || 0,
+                        opt_msg: Message || "null"
+                    }
+                    // if (Statuscode != 200) {
+                    //     return new ApiResponse(200, userRespSend);
+                    // }
+
+                    if (Status === "SUCCESS") {
+                        // If successful, store the payout data
+                        let payoutDataStore = {
+                            memberId: user?._id,
+                            amount: amount,
+                            chargeAmount: chargeAmount,
+                            finalAmount: finalAmountDeduct,
+                            bankRRN: RRN,
+                            trxId: OrderId,
+                            optxId: "null",
+                            isSuccess: "Success"
+                        }
+                        await payOutModel.create(payoutDataStore);
+                        payOutModelGen.isSuccess = "Success"
+                        await payOutModelGen.save()
+
+                        // Call back to notify the user
+                        let callBackBody = {
+                            optxid: RRN,
+                            status: "SUCCESS",
+                            txnid: OrderId,
+                            amount: amount,
+                            rrn: RRN,
+                        }
+
+                        customCallBackPayoutUser(user?._id, callBackBody)
+
+
+                        return new ApiResponse(200, userRespSend)
+                    } else {
+                        const release = await genPayoutMutex.acquire();
+                        const walletAddsession = await userDB.startSession();
+                        const transactionOptions = {
+                            readConcern: { level: 'linearizable' },
+                            writeConcern: { w: 'majority' },
+                            readPreference: { mode: 'primary' },
+                            maxTimeMS: 1500
+                        };
+                        // Handle failure: update wallet and store e-wallet transaction
+                        try {
+                            walletAddsession.startTransaction(transactionOptions);
+                            const opts = { walletAddsession };
+
+                            // update wallet 
+                            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct } }, {
+                                returnDocument: 'after',
+                                walletAddsession
+                            })
+
+                            let afterAmount = userWallet?.EwalletBalance
+                            let beforeAmount = userWallet?.EwalletBalance - finalAmountDeduct;
+
+                            // ewallet store 
+                            let walletModelDataStore = {
+                                memberId: user?._id,
+                                transactionType: "Cr.",
+                                transactionAmount: amount,
+                                beforeAmount: beforeAmount,
+                                chargeAmount: chargeAmount,
+                                afterAmount: afterAmount,
+                                description: `Successfully Cr. amount: ${Number(finalAmountDeduct)} with transaction Id: ${trxId}`,
+                                transactionStatus: "Success",
+                            }
+
+                            await walletModel.create([walletModelDataStore], opts)
+                            // Commit the transaction
+                            await walletAddsession.commitTransaction();
+                            // console.log('Transaction committed successfully');
+                        } catch (error) {
+                            console.log("inside error:", error.message)
+                            await walletAddsession.abortTransaction();
+                            // console.error('Transaction aborted due to error:', error);
+                        }
+                        finally {
+                            walletAddsession.endSession();
+                            release()
+                        }
+
+                        payOutModelGen.isSuccess = "Failed"
+                        await await payOutModelGen.save() 
+                        return { message: "Failed", data: userRespSend }
+                    }
+                }
             }
         };
 
-        const apiResponse = await performPayoutApiCall(payOutApi, apiConfig);
-
+        const apiResponse = await performPayoutApiCall(payOutApi, apiConfig); 
         if (!apiResponse || typeof apiResponse != "object") {
             payOutModelGen.isSuccess = "Failed";
             await payOutModelGen.save();
@@ -1170,9 +1283,8 @@ export const generatePayOut = asyncHandler(async (req, res) => {
 
         return res.status(200).json(response);
     } catch (error) {
-        const errorMsg = error.code === 11000 ? "Duplicate key error!" : error.message;
+        const errorMsg = error.code === 11000 ? "Duplicate key error!" : error.message; 
         return res.status(400).json({ message: "Failed", data: errorMsg });
-        console.log("outside error:", error.message)
     }
     // finally {
     //     release();
@@ -1182,6 +1294,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
 export const performPayoutApiCall = async (payOutApi, apiConfig) => {
 
     const apiDetails = apiConfig[payOutApi?.apiName];
+    console.log(apiDetails)
     if (!apiDetails) return null;
 
     try {
@@ -1194,7 +1307,7 @@ export const performPayoutApiCall = async (payOutApi, apiConfig) => {
             return "Ip validation Failed"
         }
         // console.error(`API Call Error for ${payOutApi?.apiName}:`, error?.message);
-        return `API Call Error for ${payOutApi?.apiName}: ${error?.message}`;
+        return `API Call Error for ${payOutApi?.apiName}: ${error}`;
     }
 };
 
