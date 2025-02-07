@@ -1689,7 +1689,7 @@ async function FailedTOsuccessHelp(item) {
 
 export default function scheduleTask() {
     // FailedToSuccessPayout()
-    scheduleWayuPayOutCheck()
+    // scheduleWayuPayOutCheck()
     // logsClearFunc()
     // migrateData()
     // payinScheduleTask()
