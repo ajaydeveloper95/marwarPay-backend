@@ -1293,8 +1293,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
 
 export const performPayoutApiCall = async (payOutApi, apiConfig) => {
 
-    const apiDetails = apiConfig[payOutApi?.apiName];
-    console.log(apiDetails)
+    const apiDetails = apiConfig[payOutApi?.apiName]; 
     if (!apiDetails) return null;
 
     try {
