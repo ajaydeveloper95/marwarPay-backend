@@ -659,15 +659,22 @@ const loopMutex = new Mutex();
 function scheduleWayuPayOutCheck() {
     cron.schedule('*/1 * * * *', async () => {
         const release = await transactionMutex.acquire();
+        const threeHoursAgo = new Date();
+        threeHoursAgo.setHours(threeHoursAgo.getHours() - 2)
         let GetData = await payOutModelGenerate.find({
             isSuccess: "Pending",
-            pannelUse: "waayupayPayOutApiSecond"
+            pannelUse: "waayupayPayOutApiSecond",
+            createdAt: { $lt: threeHoursAgo }
         })
             .sort({ createdAt: 1 }).limit(5)
         try {
-            GetData.forEach(async (item) => {
-                await processWaayuPayOutFn(item)
-            });
+            if (GetData?.length !== 0) {
+                GetData.forEach(async (item) => {
+                    await processWaayuPayOutFn(item)
+                });
+            } else {
+                console.log("No Pending Found In Range !")
+            }
         } catch (error) {
             console.error('Error during payout check:', error.message);
         } finally {
@@ -1679,7 +1686,7 @@ async function FailedTOsuccessHelp(item) {
 
 export default function scheduleTask() {
     // FailedToSuccessPayout()
-    // scheduleWayuPayOutCheck()
+    scheduleWayuPayOutCheck()
     // logsClearFunc()
     // migrateData()
     // payinScheduleTask()
