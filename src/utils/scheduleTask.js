@@ -1217,7 +1217,7 @@ export default function scheduleTask() {
     // FailedToSuccessPayout()
     // scheduleWayuPayOutCheck()
     // logsClearFunc()
-    migrateData()
+    // migrateData()
     // payinScheduleTask()
     // payoutTaskScript()
     // payoutDeductPackageTaskScript()
