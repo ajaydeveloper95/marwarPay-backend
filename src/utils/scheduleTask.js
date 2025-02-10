@@ -16,6 +16,7 @@ import moment from "moment";
 import upiWalletModel from "../models/upiWallet.model.js";
 import EwalletModel from "../models/Ewallet.model.js";
 import { customCallBackPayoutUser } from "../controllers/adminPannelControllers/payOut.controller.js";
+import crypto from "crypto";
 const matchingTrxIds = [
     "seabird6108787",
     "seabird6108775",
@@ -580,82 +581,7 @@ const transactionMutex = new Mutex();
 const logsMutex = new Mutex();
 const loopMutex = new Mutex();
 
-
-// function scheduleWayuPayOutCheck() {
-//     cron.schedule('*/30 * * * *', async () => {
-//         const release = await transactionMutex.acquire();
-//         try {
-//             let GetData = await payOutModelGenerate.find({ isSuccess: "Pending" }).limit(500);
-//             if (GetData.length !== 0) {
-//                 GetData.forEach(async (item) => {
-//                     let uatUrl = "https://api.waayupay.com/api/api/api-module/payout/status-check"
-//                     let postAdd = {
-//                         clientId: "adb25735-69c7-4411-a120-5f2e818bdae5",
-//                         secretKey: "6af59e5a-7f28-4670-99ae-826232b467be",
-//                         clientOrderId: item.trxId
-//                     }
-//                     let header = {
-//                         header: {
-//                             "Accept": "application/json",
-//                             "Content-Type": "application/json"
-//                         }
-//                     }
-
-//                     await axios.post(uatUrl, postAdd, header).then(async (data) => {
-//                         if (data?.data?.status !== 1) {
-//                             await payOutModelGenerate.findByIdAndUpdate(item._id, { isSuccess: "Failed" })
-//                         }
-
-//                         else if (data?.data?.status === 1) {
-//                             let userWalletInfo = await userDB.findById(item?.memberId, "_id EwalletBalance");
-//                             let beforeAmountUser = userWalletInfo.EwalletBalance;
-//                             let finalEwalletDeducted = item?.afterChargeAmount;
-//                             await payOutModelGenerate.findByIdAndUpdate(item._id, { isSuccess: "Success" })
-
-//                             let walletModelDataStore = {
-//                                 memberId: userWalletInfo._id,
-//                                 transactionType: "Dr.",
-//                                 transactionAmount: item?.amount,
-//                                 beforeAmount: beforeAmountUser,
-//                                 chargeAmount: item?.gatwayCharge || item?.afterChargeAmount - item?.amount,
-//                                 afterAmount: beforeAmountUser - finalEwalletDeducted,
-//                                 description: `Successfully Dr. amount: ${finalEwalletDeducted}`,
-//                                 transactionStatus: "Success",
-//                             }
-
-//                             // update the user wallet balance 
-//                             userWalletInfo.EwalletBalance -= finalEwalletDeducted
-//                             await userWalletInfo.save();
-
-//                             let storeTrx = await walletModel.create(walletModelDataStore)
-
-//                             let payoutDataStore = {
-//                                 memberId: item?.memberId,
-//                                 amount: item?.amount,
-//                                 chargeAmount: item?.gatwayCharge || item?.afterChargeAmount - item?.amount,
-//                                 finalAmount: finalEwalletDeducted,
-//                                 bankRRN: data?.data?.utr,
-//                                 trxId: data?.data?.clientOrderId,
-//                                 optxId: data?.data?.orderId,
-//                                 isSuccess: "Success"
-//                             }
-
-//                             await payOutModel.create(payoutDataStore)
-//                         }
-
-//                     }).catch((err) => {
-//                         console.log(err.message)
-//                     })
-//                 })
-//             }
-//         } catch (error) {
-//             console.log(error)
-//         } finally {
-//             release()
-//         }
-//     });
-// }
-
+let trxIdsToAvoid = []
 function scheduleWayuPayOutCheck() {
     cron.schedule('*/1 * * * *', async () => {
         const release = await transactionMutex.acquire();
@@ -788,6 +714,157 @@ async function processWaayuPayOutFn(item) {
     } finally {
         session.endSession();
         release()
+    }
+}
+
+function scheduleFlipzik() {
+    cron.schedule('*/30 * * * * *', async () => {
+        const release = await transactionMutex.acquire();
+        let GetData = await payOutModelGenerate.find({
+            isSuccess: "Pending",
+            trxId: { $nin: trxIdsToAvoid }
+            // pannelUse: "proConceptPayoutApi"
+        })
+            .sort({ createdAt: 1 }).limit(200)
+        try {
+            GetData.forEach(async (item) => {
+                await processFlipzikPayout(item)
+                // console.log(item)
+            });
+        } catch (error) {
+            console.error('Error during payout check:', error.message);
+        } finally {
+            release()
+        }
+    });
+}
+
+function generateSignature(timestamp, body, path, queryString = '', method = 'POST') {
+    const hmac = crypto.createHmac('sha512', process.env.FLIPZIK_SECRET_KEY);
+    hmac.update(method + "\n" + path + "\n" + queryString + "\n" + body + "\n" + timestamp + "\n");
+    return hmac.digest('hex');
+}
+
+async function processFlipzikPayout(item) {
+    const data = await flipzikStatusCheck(item?.trxId)
+    const session = await userDB.startSession({ readPreference: 'primary', readConcern: { level: "majority" }, writeConcern: { w: "majority" } });
+    const release = await transactionMutex.acquire();
+    try {
+        session.startTransaction();
+        const opts = { session };
+
+        console.log(data)
+        if (data.status === "Success" && data.master_status === "Success") {
+            // Final update and commit in transaction
+            let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(item?._id, { isSuccess: "Success" }, { session, new: true });
+            console.log(payoutModelData?.trxId, "with success")
+            let finalEwalletDeducted = payoutModelData?.afterChargeAmount
+
+            let PayoutStoreData = {
+                memberId: item?.memberId,
+                amount: item?.amount,
+                chargeAmount: item?.gatwayCharge || item?.afterChargeAmount - item?.amount,
+                finalAmount: finalEwalletDeducted,
+                bankRRN: String(data.bank_reference_id),
+                trxId: item?.trxId,
+                optxId: String(data.id),
+                isSuccess: "Success",
+            }
+
+            let v = await payOutModel.create([PayoutStoreData], opts)
+            console.log(v?.trxId)
+            await session.commitTransaction();
+            console.log("trxId updated==>", item?.trxId);
+
+            // callback send 
+            let callBackBody = {
+                optxid: data?.orderId,
+                status: "SUCCESS",
+                txnid: data?.clientOrderId,
+                amount: item?.amount,
+                rrn: data?.utr,
+            }
+            customCallBackPayoutUser(item?.memberId, callBackBody)
+
+            return true;
+        }
+        else if (data.status === "Failed" || data.master_status === "Failed") {
+            // trx is falied and update the status
+            let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(item?._id, { isSuccess: "Failed" }, { session, new: true });
+            console.log(payoutModelData?.trxId, "with falied")
+            let finalEwalletDeducted = payoutModelData?.afterChargeAmount
+
+            // update ewallets
+            // update wallet 
+            let userWallet = await userDB.findByIdAndUpdate(item?.memberId, { $inc: { EwalletBalance: + finalEwalletDeducted } }, {
+                returnDocument: 'after',
+                session
+            })
+
+            let afterAmount = userWallet?.EwalletBalance
+            let beforeAmount = userWallet?.EwalletBalance - finalEwalletDeducted;
+
+
+            // ewallet store 
+            let walletModelDataStore = {
+                memberId: item?.memberId,
+                transactionType: "Cr.",
+                transactionAmount: item?.amount,
+                beforeAmount: beforeAmount,
+                chargeAmount: item?.gatwayCharge,
+                afterAmount: afterAmount,
+                description: `Successfully Cr. amount: ${Number(finalEwalletDeducted)} with transaction Id: ${item?.trxId}`,
+                transactionStatus: "Success",
+            }
+
+            await walletModel.create([walletModelDataStore], opts)
+            // Commit the transaction
+            await session.commitTransaction();
+            // console.log('Transaction committed successfully');
+
+            console.log(item?.trxId)
+            await session.commitTransaction();
+            console.log("trxId updated==>", item?.trxId);
+
+            return true;
+        }
+        else {
+            console.log("Failed and Success Not Both !");
+            trxIdsToAvoid.push(item?.trxId)
+            await session.abortTransaction();
+            return true;
+        }
+
+    } catch (error) {
+        console.log("inside the error", error)
+        await session.abortTransaction();
+        return false
+    } finally {
+        session.endSession();
+        release()
+    }
+}
+
+async function flipzikStatusCheck(payout_id) {
+    const timestamp = Date.now().toString();
+    const signature = generateSignature(timestamp, "", `/api/v1/payout/${payout_id}`, '', 'GET');
+    try {
+        const url = `https://api.flipzik.com/api/v1/payout/${payout_id}`;
+
+        const headers = {
+            "X-Timestamp": timestamp,
+            "access_key": process.env.FLIPZIK_ACCESS_KEY,
+            "signature": signature
+        };
+
+        const response = await axios.get(url, { headers });
+
+        console.log("Transaction Status:", response.data);
+        return response.data;
+
+    } catch (error) {
+        // console.log("error in process flipzik=>", error)
+        return error.response.data.message
     }
 }
 
@@ -1686,11 +1763,12 @@ async function FailedTOsuccessHelp(item) {
 
 export default function scheduleTask() {
     // FailedToSuccessPayout()
-    scheduleWayuPayOutCheck()
+    // scheduleWayuPayOutCheck()
     // logsClearFunc()
     // migrateData()
     // payinScheduleTask()
     // payoutTaskScript()
     // payoutDeductPackageTaskScript()
     // payinScheduleTask2()
+    // scheduleFlipzik()
 }
