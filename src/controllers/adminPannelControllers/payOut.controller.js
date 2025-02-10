@@ -1160,16 +1160,17 @@ export const generatePayOut = asyncHandler(async (req, res) => {
             proConceptPayoutApi: {
                 url: payOutApi?.apiURL,
                 headers: {
-                    "AuthKey": process.env.proconceptKey,
+                    "AuthKey": process?.env?.proconceptKey,
                     "Content-Type": "application/json"
                 },
                 data: {
-                    "Mobile": String(mobileNumber),
-                    "AccountName": accountHolderName,
-                    "AccountNo": accountNumber,
-                    "amount": Number(amount),
-                    "OrderId": trxId,
-                    "IFSC": ifscCode
+                    Mobile: String(mobileNumber),
+                    AccountName: accountHolderName,
+                    AccountNo: accountNumber,
+                    Amount: Number(amount),
+                    OrderId: trxId,
+                    IFSC: ifscCode,
+                    bankName: bankName
                 },
                 res: async (apiResponse) => {
                     // const { statusCode, status, message, orderId, utr, clientOrderId, data, success } = apiResponse;
