@@ -657,16 +657,16 @@ const loopMutex = new Mutex();
 // }
 
 function scheduleWayuPayOutCheck() {
-    cron.schedule('*/59 * * * * * *', async () => {
+    cron.schedule('*/1 * * * *', async () => {
         const release = await transactionMutex.acquire();
         let GetData = await payOutModelGenerate.find({
             isSuccess: "Pending",
+            pannelUse: "waayupayPayOutApiSecond"
         })
-            .sort({ createdAt: 1 }).limit(150)
+            .sort({ createdAt: 1 }).limit(5)
         try {
             GetData.forEach(async (item) => {
                 await processWaayuPayOutFn(item)
-                // console.log(item)
             });
         } catch (error) {
             console.error('Error during payout check:', error.message);
@@ -691,19 +691,11 @@ async function processWaayuPayOutFn(item) {
     };
 
     const { data } = await axios.post(uatUrl, postAdd, header);
-    console.log("!!!!!!!!!!!!!!!!!!!!", data, "!!!!!!!!!!!!!!!!!!!!!")
     const session = await userDB.startSession({ readPreference: 'primary', readConcern: { level: "majority" }, writeConcern: { w: "majority" } });
     const release = await transactionMutex.acquire();
     try {
         session.startTransaction();
         const opts = { session };
-
-        console.log(data)
-
-        // if (data?.status === null) {
-        //     await session.abortTransaction();
-        //     return false
-        // }
         if (data?.status === 1) {
             // Final update and commit in transaction
             let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(item?._id, { isSuccess: "Success" }, { session, new: true });
@@ -722,9 +714,7 @@ async function processWaayuPayOutFn(item) {
             }
 
             let v = await payOutModel.create([PayoutStoreData], opts)
-            console.log(v?.trxId)
             await session.commitTransaction();
-            console.log("trxId updated==>", item?.trxId);
 
             // callback send 
             let callBackBody = {
@@ -738,7 +728,7 @@ async function processWaayuPayOutFn(item) {
 
             return true;
         }
-        else if (data?.status === 4 || data?.status === 0 || data?.status === 2) {
+        else if (data?.status === 4 || data?.status === 0 || data?.status == null) {
             // trx is falied and update the status
             let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(item?._id, { isSuccess: "Failed" }, { session, new: true });
             console.log(payoutModelData?.trxId, "with falied")
@@ -772,14 +762,14 @@ async function processWaayuPayOutFn(item) {
             await session.commitTransaction();
             // console.log('Transaction committed successfully');
 
-            console.log(item?.trxId)
+            // console.log(item?.trxId)
             await session.commitTransaction();
-            console.log("trxId updated==>", item?.trxId);
+            // console.log("trxId updated==>", item?.trxId);
 
             return true;
         }
         else {
-            console.log("Failed and Success Not Both !");
+            console.log(item?.trxId, "not success or failed")
             await session.abortTransaction();
             return true;
         }
@@ -803,7 +793,7 @@ function migrateData() {
             const threeHoursAgo = new Date();
             threeHoursAgo.setHours(threeHoursAgo.getHours() - 3)
 
-            const oldData = await qrGenerationModel.find({ createdAt: { $lt: threeHoursAgo } }).sort({ createdAt: 1 }).limit(5000);
+            const oldData = await qrGenerationModel.find({ createdAt: { $lt: threeHoursAgo } }).sort({ createdAt: 1 }).limit(2000);
 
             if (oldData.length > 0) {
                 const newData = oldData.map(item => ({
