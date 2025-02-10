@@ -30,16 +30,17 @@ const loopMutex = new Mutex();
 
 let trxIdsToAvoid = []
 function scheduleWayuPayOutCheck() {
-    cron.schedule('*/1 * * * *', async () => {
+    cron.schedule('*/10 * * * * *', async () => {
         const release = await transactionMutex.acquire();
         const threeHoursAgo = new Date();
         threeHoursAgo.setHours(threeHoursAgo.getHours() - 2)
         let GetData = await payOutModelGenerate.find({
             isSuccess: "Pending",
             pannelUse: "waayupayPayOutApiSecond",
-            createdAt: { $lt: threeHoursAgo }
+            createdAt: { $lt: threeHoursAgo },
+            trxId:{$nin: trxIdsToAvoid}
         })
-            .sort({ createdAt: 1 }).limit(5)
+            .sort({ createdAt: 1 }).limit(50)
         try {
             if (GetData?.length !== 0) {
                 GetData.forEach(async (item) => {
@@ -150,6 +151,7 @@ async function processWaayuPayOutFn(item) {
         }
         else {
             console.log(item?.trxId, "not success or failed")
+            trxIdsToAvoid.push(item?.trxId)
             await session.abortTransaction();
             return true;
         }
@@ -163,21 +165,27 @@ async function processWaayuPayOutFn(item) {
         release()
     }
 }
-
+let tempTrxIds = []
 function scheduleFlipzik() {
-    cron.schedule('*/30 * * * * *', async () => {
+    cron.schedule('*/10 * * * * *', async () => {
         const release = await transactionMutex.acquire();
+        let tenDaysAgo = new Date();
+        tenDaysAgo.setDate(tenDaysAgo.getDate() - 7);
+
         let GetData = await payOutModelGenerate.find({
             isSuccess: "Pending",
-            trxId: { $nin: trxIdsToAvoid }
-            // pannelUse: "proConceptPayoutApi"
+            trxId: { $nin: tempTrxIds },
+            createdAt: { $gte: tenDaysAgo }
         })
-            .sort({ createdAt: 1 }).limit(200)
+            .sort({ createdAt: -1 }).limit(50)
         try {
-            GetData.forEach(async (item) => {
+            for (const item of GetData) {
                 await processFlipzikPayout(item)
-                // console.log(item)
-            });
+            }
+            // trxIds.forEach(async (item) => {
+
+            //     // console.log(item)
+            // });
         } catch (error) {
             console.error('Error during payout check:', error.message);
         } finally {
@@ -193,9 +201,10 @@ function generateSignature(timestamp, body, path, queryString = '', method = 'PO
 }
 
 async function processFlipzikPayout(item) {
-    const data = await flipzikStatusCheck(item?.trxId)
+    const data = await flipzikStatusCheck(item.trxId)
+
     const session = await userDB.startSession({ readPreference: 'primary', readConcern: { level: "majority" }, writeConcern: { w: "majority" } });
-    const release = await transactionMutex.acquire();
+    // const release = await transactionMutex.acquire();
     try {
         session.startTransaction();
         const opts = { session };
@@ -275,21 +284,103 @@ async function processFlipzikPayout(item) {
 
             return true;
         }
+        // else if(typeof data == "string") {
+        //     // trx is falied and update the status
+
+        //     let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(item?._id, { isSuccess: "Failed" }, { session, new: true });
+        //     console.log(payoutModelData?.trxId, "with pending")
+        //     let finalEwalletDeducted = payoutModelData?.afterChargeAmount
+
+        //     // update ewallets
+        //     // update wallet 
+        //     let userWallet = await userDB.findByIdAndUpdate(item?.memberId, { $inc: { EwalletBalance: + finalEwalletDeducted } }, {
+        //         returnDocument: 'after',
+        //         session
+        //     })
+
+        //     let afterAmount = userWallet?.EwalletBalance
+        //     let beforeAmount = userWallet?.EwalletBalance - finalEwalletDeducted;
+
+
+        //     // ewallet store 
+        //     let walletModelDataStore = {
+        //         memberId: item?.memberId,
+        //         transactionType: "Cr.",
+        //         transactionAmount: item?.amount,
+        //         beforeAmount: beforeAmount,
+        //         chargeAmount: item?.gatwayCharge,
+        //         afterAmount: afterAmount,
+        //         description: `Successfully Cr. amount: ${Number(finalEwalletDeducted)} with transaction Id: ${item?.trxId}`,
+        //         transactionStatus: "Success",
+        //     }
+
+        //     await walletModel.create([walletModelDataStore], opts)
+        //     // Commit the transaction
+        //     await session.commitTransaction();
+        //     // console.log('Transaction committed successfully');
+
+        //     console.log(item?.trxId)
+        //     await session.commitTransaction();
+        //     console.log("trxId updated==>", item?.trxId);
+
+        //     return true;
+        // } 
+        // if (data.master_status === "Pending") {
+        //     let payoutModelData = await payOutModelGenerate.findOneAndUpdate(
+        //         { trxId: item?.trxId, isSuccess: "Failed" },
+        //         { $set: { isSuccess: "Pending" } },
+        //         { session, new: true }
+        //     );
+        //     console.log(payoutModelData, "with Pending")
+        //     if (!payoutModelData) throw new Error("transaction not on flipzik")
+        //     let finalEwalletDeducted = payoutModelData?.afterChargeAmount
+
+        //     // update ewallets
+        //     // update wallet 
+        //     const userWallet = await userDB.findByIdAndUpdate(payoutModelData?.memberId, { $inc: { EwalletBalance: - finalEwalletDeducted } }, {
+        //         returnDocument: 'after',
+        //         session
+        //     })
+        //     let afterAmount = Number(userWallet?.EwalletBalance)
+        //     let beforeAmount = Number(userWallet?.EwalletBalance - finalEwalletDeducted);
+
+        //     let walletModelDataStore = {
+        //         memberId: payoutModelData?.memberId,
+        //         transactionType: "Dr.",
+        //         transactionAmount: payoutModelData?.amount,
+        //         beforeAmount: beforeAmount,
+        //         chargeAmount: payoutModelData?.gatwayCharge,
+        //         afterAmount: afterAmount,
+        //         description: `Successfully Dr. amount: ${Number(finalEwalletDeducted)} with transaction Id: ${item}`,
+        //         transactionStatus: "Success",
+        //     }
+
+        //     await walletModel.create([walletModelDataStore], opts)
+        //     // Commit the transaction
+        //     await session.commitTransaction();
+        //     // console.log('Transaction committed successfully');
+
+        //     console.log(payoutModelData?.trxId)
+        //     await session.commitTransaction();
+        //     console.log("trxId updated==>", payoutModelData?.trxId);
+
+        //     return true;
+        // }
         else {
             console.log("Failed and Success Not Both !");
-            trxIdsToAvoid.push(item?.trxId)
+            tempTrxIds.push(item?.trxId)
             await session.abortTransaction();
             return true;
         }
-
     } catch (error) {
         console.log("inside the error", error)
         await session.abortTransaction();
         return false
     } finally {
         session.endSession();
-        release()
+        // release()
     }
+
 }
 
 async function flipzikStatusCheck(payout_id) {
