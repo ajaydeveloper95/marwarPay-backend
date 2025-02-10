@@ -656,15 +656,16 @@ const loopMutex = new Mutex();
 //         }
 //     });
 // }
-
+let trxIdsToAvoid = []
 function scheduleWayuPayOutCheck() {
-    cron.schedule('*/59 * * * * * *', async () => {
+    cron.schedule('*/30 * * * * *', async () => {
         const release = await transactionMutex.acquire();
         let GetData = await payOutModelGenerate.find({
             isSuccess: "Pending",
+            trxId: { $nin: trxIdsToAvoid }
             // trxId:""
         })
-            .sort({ createdAt: 1 }).limit(150)
+            .sort({ createdAt: -1 }).limit(150)
         try {
             GetData.forEach(async (item) => {
                 await processWaayuPayOutFn(item)
@@ -782,6 +783,7 @@ async function processWaayuPayOutFn(item) {
         }
         else {
             console.log("Failed and Success Not Both !");
+            trxIdsToAvoid.push(item?.trxId)
             await session.abortTransaction();
             return true;
         }
@@ -797,13 +799,14 @@ async function processWaayuPayOutFn(item) {
 }
 
 function scheduleFlipzik() {
-    cron.schedule('* * * * *', async () => {
+    cron.schedule('*/30 * * * * *', async () => {
         const release = await transactionMutex.acquire();
         let GetData = await payOutModelGenerate.find({
             isSuccess: "Pending",
+            trxId: { $nin: trxIdsToAvoid }
             // pannelUse: "proConceptPayoutApi"
         })
-            .sort({ createdAt: 1 }).limit(50)
+            .sort({ createdAt: 1 }).limit(200)
         try {
             GetData.forEach(async (item) => {
                 await processFlipzikPayout(item)
@@ -823,7 +826,7 @@ function generateSignature(timestamp, body, path, queryString = '', method = 'PO
     return hmac.digest('hex');
 }
 
-async function processFlipzikPayout (item) {
+async function processFlipzikPayout(item) {
     const data = await flipzikStatusCheck(item?.trxId)
     const session = await userDB.startSession({ readPreference: 'primary', readConcern: { level: "majority" }, writeConcern: { w: "majority" } });
     const release = await transactionMutex.acquire();
@@ -831,7 +834,7 @@ async function processFlipzikPayout (item) {
         session.startTransaction();
         const opts = { session };
 
-        console.log(data) 
+        console.log(data)
         if (data.status === "Success" && data.master_status === "Success") {
             // Final update and commit in transaction
             let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(item?._id, { isSuccess: "Success" }, { session, new: true });
@@ -866,7 +869,7 @@ async function processFlipzikPayout (item) {
 
             return true;
         }
-        else if (data.status === "Failed" && data.master_status === "Failed") {
+        else if (data.status === "Failed" || data.master_status === "Failed") {
             // trx is falied and update the status
             let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(item?._id, { isSuccess: "Failed" }, { session, new: true });
             console.log(payoutModelData?.trxId, "with falied")
@@ -908,6 +911,7 @@ async function processFlipzikPayout (item) {
         }
         else {
             console.log("Failed and Success Not Both !");
+            trxIdsToAvoid.push(item?.trxId)
             await session.abortTransaction();
             return true;
         }
@@ -923,7 +927,7 @@ async function processFlipzikPayout (item) {
 }
 
 async function flipzikStatusCheck(payout_id) {
-    const timestamp = Date.now().toString(); 
+    const timestamp = Date.now().toString();
     const signature = generateSignature(timestamp, "", `/api/v1/payout/${payout_id}`, '', 'GET');
     try {
         const url = `https://api.flipzik.com/api/v1/payout/${payout_id}`;
@@ -940,8 +944,8 @@ async function flipzikStatusCheck(payout_id) {
         return response.data;
 
     } catch (error) {
-        console.log("error in process flipzik=>", error.message)
-        return error.message
+        // console.log("error in process flipzik=>", error)
+        return error.response.data.message
     }
 }
 
@@ -1840,7 +1844,7 @@ async function FailedTOsuccessHelp(item) {
 
 export default function scheduleTask() {
     // FailedToSuccessPayout()
-    scheduleWayuPayOutCheck()
+    // scheduleWayuPayOutCheck()
     // logsClearFunc()
     // migrateData()
     // payinScheduleTask()
