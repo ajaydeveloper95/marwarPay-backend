@@ -316,26 +316,31 @@ async function flipzikStatusCheck(payout_id) {
 }
 
 function migrateData() {
-    cron.schedule('0,20 * * * *', async () => {
+    cron.schedule('*/20 * * * *', async () => {
         const release = await transactionMutex.acquire();
         try {
             console.log("Running cron job to migrate old data...");
 
             const threeHoursAgo = new Date();
-            threeHoursAgo.setHours(threeHoursAgo.getHours() - 3)
+            threeHoursAgo.setHours(threeHoursAgo.getHours() - 6)
 
-            const oldData = await qrGenerationModel.find({ createdAt: { $lt: threeHoursAgo } }).sort({ createdAt: 1 }).limit(2000);
+            const oldData = await qrGenerationModel.find({ createdAt: { $lt: threeHoursAgo } }).sort({ createdAt: 1 }).limit(3000);
 
             if (oldData.length > 0) {
                 const newData = oldData.map(item => ({
-                    ...item,
                     memberId: new mongoose.Types.ObjectId((String(item?.memberId))),
                     name: String(item?.name),
                     amount: Number(item?.amount),
                     trxId: String(item?.trxId),
+                    refId: String(item?.refId),
+                    ip: String(item?.ip),
+                    qrData: String(item?.qrData),
+                    qrIntent: String(item?.qrIntent),
+                    pannelUse: String(item?.pannelUse),
+                    callBackStatus: String(item?.callBackStatus),
                     migratedAt: new Date(),
-                }));
-
+                })
+                );
                 await oldQrGenerationModel.insertMany(newData);
 
                 const oldDataIds = oldData.map(item => item._id);
@@ -1212,7 +1217,7 @@ export default function scheduleTask() {
     // FailedToSuccessPayout()
     // scheduleWayuPayOutCheck()
     // logsClearFunc()
-    // migrateData()
+    migrateData()
     // payinScheduleTask()
     // payoutTaskScript()
     // payoutDeductPackageTaskScript()
