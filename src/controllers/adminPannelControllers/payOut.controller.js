@@ -1169,8 +1169,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                     "AccountNo": accountNumber,
                     "IFSC": ifscCode,
                     "OrderId": trxId,
-                    "amount": Number(amount),
-                    "bankName": bankName
+                    "amount": Number(amount)
                 },
                 res: async (apiResponse) => {
                     // const { statusCode, status, message, orderId, utr, clientOrderId, data, success } = apiResponse;
@@ -1270,13 +1269,12 @@ export const performPayoutApiCall = async (payOutApi, apiConfig) => {
 
     const apiDetails = apiConfig[payOutApi?.apiName];
     if (!apiDetails) return null;
-    console.log(apiDetails)
     try {
         const response = await axios.post(apiDetails.url, apiDetails.data, { headers: apiDetails.headers });
-        console.log(response)
+        // console.log(response)
         return response?.data || null;
     } catch (error) {
-        console.log(error)
+        // console.log(error)
         if (error?.response?.data?.fault?.detail?.errorcode === "steps.accesscontrol.IPDeniedAccess") {
             return "Ip validation Failed"
         }
