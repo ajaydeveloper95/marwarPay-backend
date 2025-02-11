@@ -1248,8 +1248,8 @@ export const generatePayOut = asyncHandler(async (req, res) => {
 
         const apiResponse = await performPayoutApiCall(payOutApi, apiConfig);
         if (!apiResponse || typeof apiResponse != "object") {
-            payOutModelGen.isSuccess = "Failed";
-            await payOutModelGen.save();
+            // payOutModelGen.isSuccess = "Failed";
+            // await payOutModelGen.save();
             return res.status(500).json({ message: "Failed", data: { statusCode: 400, txnID: trxId, message: apiResponse } });
         }
 
