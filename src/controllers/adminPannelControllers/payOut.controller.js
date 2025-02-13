@@ -1187,7 +1187,9 @@ export const generatePayOut = asyncHandler(async (req, res) => {
 
                     if (Status === "SUCCESS") {
                         return new ApiResponse(200, userRespSend)
-                    } else if (Status === "FAILED") {
+                    }
+
+                    if (Status === "FAILED") {
                         const release = await genPayoutMutex.acquire();
                         const walletAddsession = await userDB.startSession();
                         const transactionOptions = {
@@ -1239,9 +1241,9 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                         }
 
                         return { message: "Failed", data: userRespSend }
-                    } else {
-                        return { message: "Failed", data: userRespSend }
                     }
+
+                    return { message: "Failed", data: userRespSend }
                 }
             }
         };
