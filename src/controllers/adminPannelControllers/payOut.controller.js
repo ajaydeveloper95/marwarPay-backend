@@ -1185,11 +1185,11 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                         opt_msg: Message || "null"
                     }
 
-                    if (Status.toLowerCase() === "SUCCESS") {
+                    if (Status.toLowerCase() === "success") {
                         return new ApiResponse(200, userRespSend)
                     }
 
-                    if (Status.toLowerCase() === "FAILED") {
+                    if (Status.toLowerCase() === "failed") {
                         const release = await genPayoutMutex.acquire();
                         const walletAddsession = await userDB.startSession();
                         const transactionOptions = {
