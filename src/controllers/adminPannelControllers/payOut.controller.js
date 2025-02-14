@@ -188,6 +188,130 @@ export const allPayOutPayment = asyncHandler(async (req, res) => {
     }
 });
 
+export const updatePayoutStatus = asyncHandler(async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+        const { trxId, bankRRN, optxId, memberId, status } = req.body;
+
+        // Validate required fields
+        if (!trxId || !memberId || !status) {
+            await session.abortTransaction();
+            session.endSession();
+            return res.status(400).json({ message: "trxId, memberId, and status are required" });
+        }
+
+        // Fetch user details
+        const user = await userDB.findOne({ memberId, isActive: true })
+            .select("userName memberId EwalletBalance minWalletBalance")
+            .session(session);
+
+        if (!user) {
+            await session.abortTransaction();
+            session.endSession();
+            return res.status(401).json({ message: "Failed", data: "Invalid Credentials or User Inactive!" });
+        }
+
+        // Update payout status in payOutGen
+        const payOutGen = await payOutModelGenerate.findOneAndUpdate(
+            { trxId: trxId },
+            { $set: { isSuccess: status.toLowerCase() === "failed" ? "Failed" : "Success" } },
+            { new: true, session }
+        );
+
+        if (!payOutGen) {
+            await session.abortTransaction();
+            session.endSession();
+            return res.status(400).json({ message: "Payout record not found" });
+        }
+
+        const { EwalletBalance } = user;
+
+        if (status.toLowerCase() === "failed") {
+            // Reverse the wallet balance
+            const updatedUserWallet = await userDB.findByIdAndUpdate(
+                user._id,
+                { $inc: { EwalletBalance: +Number(payOutGen.afterChargeAmount) } },
+                { new: true, session }
+            );
+
+            if (!updatedUserWallet) {
+                await session.abortTransaction();
+                session.endSession();
+                return res.status(500).json({ message: "Failed", data: "Wallet update failed" });
+            }
+
+            // Log wallet transaction
+            const walletModelDataStore = {
+                memberId: user._id,
+                transactionType: "Cr.",
+                transactionAmount: payOutGen.amount,
+                beforeAmount: updatedUserWallet.EwalletBalance - payOutGen.afterChargeAmount,
+                chargeAmount: payOutGen.gatwayCharge || 0,
+                afterAmount: updatedUserWallet.EwalletBalance,
+                description: `Successfully credited amount: ${Number(payOutGen.afterChargeAmount)} with transaction Id: ${trxId}`,
+                transactionStatus: "Success",
+            };
+
+            await walletModel.create([walletModelDataStore], { session });
+
+            // Commit the transaction
+            await session.commitTransaction();
+            session.endSession();
+
+            return res.status(200).json({ message: "Success", data: "Status updated successfully" });
+        }
+        else if (status.toLowerCase() === "success") {
+            if (!bankRRN) {
+                await session.abortTransaction();
+                session.endSession();
+                return res.status(400).json({ message: "bank rrn is required" });
+            }
+
+            // Store payout data
+            const payoutDataStore = {
+                memberId: user._id,
+                amount: payOutGen.amount,
+                chargeAmount: payOutGen.gatwayCharge || 0,
+                finalAmount: payOutGen.afterChargeAmount,
+                bankRRN: bankRRN,
+                trxId: trxId,
+                optxId: optxId,
+                isSuccess: "Success"
+            };
+
+            const callBackBody = {
+                optxid: optxId,
+                status: "SUCCESS",
+                txnid: trxId,
+                amount: payOutGen.amount,
+                rrn: bankRRN,
+            };
+
+            await Promise.all([
+                payOutModel.create([payoutDataStore], { session }),
+                customCallBackPayoutUser(user._id, callBackBody)
+            ]);
+
+            // Commit the transaction
+            await session.commitTransaction();
+            session.endSession();
+
+            return res.status(200).json({ message: "Success", data: "Payout processed successfully" });
+        }
+
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ message: "Invalid status" });
+
+    } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(500).json({ message: "Failed", data: "Status update failed", error: error.message });
+    }
+});
+
+
 function generateSignature(timestamp, body, path, queryString = '', method = 'POST') {
     const hmac = crypto.createHmac('sha512', process.env.FLIPZIK_SECRET_KEY);
     hmac.update(method + "\n" + path + "\n" + queryString + "\n" + body + "\n" + timestamp + "\n");
@@ -1433,19 +1557,19 @@ export const payoutStatusCheck = asyncHandler(async (req, res) => {
     res.status(200).json(new ApiResponse(200, pack))
 });
 
-export const payoutStatusUpdate = asyncHandler(async (req, res) => {
-    let trxIdGet = req.params.trxId;
-    let pack = await payOutModelGenerate.findOne({ trxId: trxIdGet })
-    if (!pack) {
-        return res.status(400).json({ message: "Failed", data: "No Transaction !" })
-    }
-    if (pack.isSuccess === "Success" || pack.isSuccess === "Failed") {
-        return res.status(400).json({ message: "Failed", data: `Transaction Status Can't Update Already: ${pack?.isSuccess}` })
-    }
-    pack.isSuccess = req.body.isSuccess;
-    await pack.save()
-    res.status(200).json(new ApiResponse(200, pack))
-});
+// export const payoutStatusUpdate = asyncHandler(async (req, res) => {
+//     let trxIdGet = req.params.trxId;
+//     let pack = await payOutModelGenerate.findOne({ trxId: trxIdGet })
+//     if (!pack) {
+//         return res.status(400).json({ message: "Failed", data: "No Transaction !" })
+//     }
+//     if (pack.isSuccess === "Success" || pack.isSuccess === "Failed") {
+//         return res.status(400).json({ message: "Failed", data: `Transaction Status Can't Update Already: ${pack?.isSuccess}` })
+//     }
+//     pack.isSuccess = req.body.isSuccess;
+//     await pack.save()
+//     res.status(200).json(new ApiResponse(200, pack))
+// });
 
 export const payoutCallBackResponse = asyncHandler(async (req, res) => {
     try {

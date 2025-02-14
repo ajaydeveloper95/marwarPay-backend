@@ -2,7 +2,7 @@ import express from "express";
 const router = express.Router();
 import { celebrate, Joi } from "celebrate";
 import { userVerify, userAuthAdmin } from "../../middlewares/userAuth.js";
-import { allPayOutPayment, allPayOutPaymentSuccess, flipzikpayCallback, generatePayOut, payoutCallBackImpactPeek, payoutCallBackResponse, payoutStatusCheck, payoutStatusUpdate, proConceptCallback } from "../../controllers/adminPannelControllers/payOut.controller.js";
+import { allPayOutPayment, allPayOutPaymentSuccess, flipzikpayCallback, generatePayOut, payoutCallBackImpactPeek, payoutCallBackResponse, payoutStatusCheck, proConceptCallback, updatePayoutStatus } from "../../controllers/adminPannelControllers/payOut.controller.js";
 import multer from "multer";
 import { apiValidate } from "../../middlewares/apiValidate.js";
 const upload = multer();
@@ -31,14 +31,7 @@ router.get("/payoutStatusCheck/:trxId", celebrate({
     })
 }), payoutStatusCheck);
 
-router.post("/payoutStatusUpdate/:trxId", celebrate({
-    body: Joi.object({
-        isSuccess: Joi.string().valid("Pending", "Failed", "Success").required(),
-    }),
-    params: Joi.object({
-        trxId: Joi.string().trim().min(10).max(25).required(),
-    })
-}), userVerify, userAuthAdmin, payoutStatusUpdate);
+router.post("/payoutStatusUpdate", userVerify, userAuthAdmin, updatePayoutStatus);
 
 router.post("/payoutCallBackResponse", upload.none(), payoutCallBackResponse);
 
