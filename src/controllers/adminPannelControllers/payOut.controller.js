@@ -925,6 +925,137 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                     }
                 }
             },
+            waayupayPayOutApiMindMatrix: {
+                url: payOutApi.apiURL,
+                headers: { 'Content-Type': 'application/json', 'Accept': "application/json" },
+                data: {
+                    clientId: process.env.WAAYU_CLIENT_ID_MINDMATRIX,
+                    secretKey: process.env.WAAYU_SECRET_KEY_MINDMATRIX,
+                    number: String(mobileNumber),
+                    amount: amount.toString(),
+                    transferMode: "IMPS",
+                    accountNo: accountNumber,
+                    ifscCode,
+                    beneficiaryName: accountHolderName,
+                    vpa: "ajaybudaniya1@ybl",
+                    clientOrderId: trxId
+                },
+                res: async (apiResponse) => {
+                    const { statusCode, status, message, orderId, utr, clientOrderId } = apiResponse;
+
+                    if (status == 1) {
+                        let payoutDataStore = {
+                            memberId: user?._id,
+                            amount: amount,
+                            chargeAmount: chargeAmount,
+                            finalAmount: finalAmountDeduct,
+                            bankRRN: utr,
+                            trxId: trxId,
+                            optxId: orderId,
+                            isSuccess: "Success"
+                        }
+                        await payOutModel.create(payoutDataStore);
+                        payOutModelGen.isSuccess = "Success"
+                        await payOutModelGen.save()
+                        let callBackBody = {
+                            optxid: orderId,
+                            status: "SUCCESS",
+                            txnid: clientOrderId,
+                            amount: amount,
+                            rrn: utr,
+                        }
+
+                        customCallBackPayoutUser(user?._id, callBackBody)
+
+                        let userREspSend = {
+                            statusCode: statusCode || 0,
+                            status: status || 0,
+                            trxId: trxId || 0,
+                            opt_msg: message || "null"
+                        }
+                        return new ApiResponse(200, userREspSend)
+                    }
+                    // else if (status == 0) {
+                    //     const release = await genPayoutMutex.acquire();
+                    //     // db locking with added amount 
+                    //     const walletAddsession = await userDB.startSession();
+                    //     const transactionOptions = {
+                    //         readConcern: { level: 'linearizable' },
+                    //         writeConcern: { w: 'majority' },
+                    //         readPreference: { mode: 'primary' },
+                    //         maxTimeMS: 1500
+                    //     };
+                    //     // wallet added and store ewallet trx
+                    //     try {
+                    //         walletAddsession.startTransaction(transactionOptions);
+                    //         const opts = { walletAddsession };
+
+                    //         // Perform the update within the transaction
+                    //         // update wallet 
+                    //         let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct } }, {
+                    //             returnDocument: 'after',
+                    //             walletAddsession
+                    //         })
+
+                    //         let afterAmount = userWallet?.EwalletBalance
+                    //         let beforeAmount = userWallet?.EwalletBalance - finalAmountDeduct;
+
+                    //         // ewallet store 
+                    //         let walletModelDataStore = {
+                    //             memberId: user?._id,
+                    //             transactionType: "Cr.",
+                    //             transactionAmount: amount,
+                    //             beforeAmount: beforeAmount,
+                    //             chargeAmount: chargeAmount,
+                    //             afterAmount: afterAmount,
+                    //             description: `Successfully Cr. amount: ${Number(finalAmountDeduct)} with transaction Id: ${trxId}`,
+                    //             transactionStatus: "Success",
+                    //         }
+
+                    //         await walletModel.create([walletModelDataStore], opts)
+                    //         // Commit the transaction
+                    //         await walletAddsession.commitTransaction();
+                    //         // console.log('Transaction committed successfully');
+                    //     } catch (error) {
+                    //         console.log(error)
+                    //         await walletAddsession.abortTransaction();
+                    //         // console.error('Transaction aborted due to error:', error);
+                    //     }
+                    //     finally {
+                    //         walletAddsession.endSession();
+                    //         release()
+                    //     }
+
+                    //     payOutModelGen.isSuccess = "Failed"
+                    //     await await payOutModelGen.save()
+                    //     let userREspSend2 = {
+                    //         statusCode: statusCode || 0,
+                    //         status: status || 0,
+                    //         trxId: trxId || 0,
+                    //         opt_msg: message || "null"
+                    //     }
+                    //     return { message: "Failed", data: userREspSend2 }
+                    // } 
+                    else {
+                        // let callBackBody = {
+                        //     optxid: orderId || "",
+                        //     status: "Pending",
+                        //     txnid: clientOrderId || "",
+                        //     amount: amount,
+                        //     rrn: utr || "",
+                        // }
+                        // customCallBackPayoutUser(user?._id, callBackBody)
+
+                        let userREspSend = {
+                            statusCode: statusCode || 0,
+                            status: status || 0,
+                            trxId: trxId || 0,
+                            opt_msg: message || "Payout initiated, awaiting response from banking side."
+                        }
+                        return new ApiResponse(200, userREspSend)
+                    }
+                }
+            },
             iSmartPayPayoutApi: {
                 url: payOutApi?.apiURL,
                 headers: {
