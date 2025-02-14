@@ -280,8 +280,16 @@ export const allGeneratedPayment = asyncHandler(async (req, res) => {
             }
         ];
 
-        let payments = exportToCSV != "true" ? await qrGenerationModel.aggregate(aggregationPipeline, aggregationOptions).allowDiskUse(true) : await oldQrGenerationModel.aggregate(aggregationPipeline, aggregationOptions).allowDiskUse(true);
-
+        // let payments = exportToCSV != "true" ? await qrGenerationModel.aggregate(aggregationPipeline, aggregationOptions).allowDiskUse(true) : await oldQrGenerationModel.aggregate(aggregationPipeline, aggregationOptions).allowDiskUse(true);
+        let payments
+        if (exportToCSV == "true") {
+            let newPayments = await qrGenerationModel.aggregate(aggregationPipeline, aggregationOptions).allowDiskUse(true)
+            let oldPayments = await oldQrGenerationModel.aggregate(aggregationPipeline, aggregationOptions).allowDiskUse(true)
+            payments = [...oldPayments, ...newPayments]
+            
+        } else {
+            payments = await qrGenerationModel.aggregate(aggregationPipeline, aggregationOptions).allowDiskUse(true)
+        }
         const totalDocs = exportToCSV === "true" ? payments.length : await qrGenerationModel.countDocuments(matchFilters);
 
         if (exportToCSV === "true") {
