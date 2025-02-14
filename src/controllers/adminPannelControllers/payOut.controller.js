@@ -20,53 +20,52 @@ const iSmartMutex = new Mutex();
 const flipzikMutex = new Mutex();
 const proconceptMutex = new Mutex();
 
-
 export const allPayOutPayment = asyncHandler(async (req, res) => {
-    let { page = 1, limit = 25, keyword = "", startDate, endDate, memberId, status, export: exportToCSV } = req.query;
-    page = Number(page) || 1;
-    limit = Number(limit) || 25;
-    const skip = (page - 1) * limit;
-    const trimmedKeyword = keyword.trim();
-    const trimmedMemberId = memberId && mongoose.Types.ObjectId.isValid(String(memberId))
-        ? new mongoose.Types.ObjectId(String(memberId.trim()))
-        : null;
-    const trimmedStatus = status ? status.trim() : "";
-
-    let dateFilter = {};
-    if (startDate) {
-        dateFilter.$gte = new Date(startDate);
-    }
-    if (endDate) {
-        endDate = new Date(endDate);
-        endDate.setHours(23, 59, 59, 999);
-        dateFilter.$lt = new Date(endDate);
-    }
-
-    let matchFilters = {
-        ...(Object.keys(dateFilter).length > 0 && { createdAt: dateFilter }),
-        ...(trimmedKeyword && {
-            $or: [
-                { trxId: { $regex: trimmedKeyword, $options: "i" } },
-                { accountHolderName: { $regex: trimmedKeyword, $options: "i" } }
-            ]
-        }),
-        ...(trimmedStatus && { isSuccess: { $regex: trimmedStatus, $options: "i" } }),
-        ...(trimmedMemberId && { memberId: trimmedMemberId })
-    };
-
     try {
-        const totalDocs = await payOutModelGenerate.countDocuments();
+        let { page = 1, limit = 25, keyword = "", startDate, endDate, memberId, status, export: exportToCSV } = req.query;
+        
+        page = Number(page) || 1;
+        limit = Number(limit) || 25;
+        const skip = (page - 1) * limit;
+
+        const trimmedKeyword = keyword.trim();
+        const trimmedStatus = status ? status.trim() : "";
+        const trimmedMemberId = memberId && mongoose.Types.ObjectId.isValid(String(memberId))
+            ? new mongoose.Types.ObjectId(String(memberId.trim()))
+            : null;
+
+        // Date filter
+        let dateFilter = {};
+        if (startDate) dateFilter.$gte = new Date(startDate);
+        if (endDate) {
+            endDate = new Date(endDate);
+            endDate.setHours(23, 59, 59, 999);
+            dateFilter.$lt = endDate;
+        }
+
+        // Match filters
+        let matchFilters = {
+            ...(Object.keys(dateFilter).length > 0 && { createdAt: dateFilter }),
+            ...(trimmedKeyword && {
+                $or: [
+                    { trxId: { $regex: trimmedKeyword, $options: "i" } },
+                    { accountHolderName: { $regex: trimmedKeyword, $options: "i" } }
+                ]
+            }),
+            ...(trimmedStatus && { isSuccess: { $regex: trimmedStatus, $options: "i" } }),
+            ...(trimmedMemberId && { memberId: trimmedMemberId })
+        };
+
+        // Get total count of matching documents
+        const totalDocs = await payOutModelGenerate.countDocuments(matchFilters);
         const sortDirection = Object.keys(dateFilter).length > 0 ? 1 : -1;
+
+        // Aggregation Pipeline
         const pipeline = [
             { $match: matchFilters },
             { $sort: { createdAt: sortDirection } },
 
-            ...(exportToCSV != "true"
-                ? [
-                    { $skip: skip },
-                    { $limit: limit }
-                ]
-                : []),
+            ...(exportToCSV !== "true" ? [{ $skip: skip }, { $limit: limit }] : []),
 
             {
                 $lookup: {
@@ -74,79 +73,66 @@ export const allPayOutPayment = asyncHandler(async (req, res) => {
                     localField: "memberId",
                     foreignField: "_id",
                     as: "userInfo",
-                    pipeline: [
-                        { $project: { userName: 1, fullName: 1, memberId: 1 } }
-                    ],
-                },
+                    pipeline: [{ $project: { userName: 1, fullName: 1, memberId: 1 } }]
+                }
             },
-            {
-                $unwind: {
-                    path: "$userInfo",
-                    preserveNullAndEmptyArrays: false
-                },
-            },
+            { $unwind: { path: "$userInfo", preserveNullAndEmptyArrays: true } },
+
             {
                 $lookup: {
-                    from: "payoutrecodes", // Replace with the correct collection name for payoutSuccess
+                    from: "payoutrecodes",
                     localField: "trxId",
-                    foreignField: "trxId", // Replace with the appropriate field for linking
+                    foreignField: "trxId",
                     as: "payoutSuccessData",
-                    pipeline: [
-                        { $project: { chargeAmount: 1, finalAmount: 1 } },
-                    ],
-                },
+                    pipeline: [{ $project: { chargeAmount: 1, finalAmount: 1 } }]
+                }
             },
-            {
-                $unwind: {
-                    path: "$payoutSuccessData",
-                    preserveNullAndEmptyArrays: true,
-                },
-            },
-            ...(exportToCSV == "true"
+            { $unwind: { path: "$payoutSuccessData", preserveNullAndEmptyArrays: true } },
+
+            ...(exportToCSV === "true"
                 ? [{
                     $addFields: {
                         createdAt: {
                             $dateToString: {
                                 format: "%Y-%m-%d %H:%M:%S",
-                                date: {
-                                    $add: ["$createdAt", 0] // Convert UTC to IST
-                                },
+                                date: { $add: ["$createdAt", 0] },
                                 timezone: "Asia/Kolkata"
                             }
                         }
                     }
-                }] : []),
+                }]
+                : []),
+
             {
                 $project: {
-                    "_id": 1,
-                    "trxId": 1,
-                    "accountHolderName": 1,
-                    "optxId": 1,
-                    "accountNumber": 1,
-                    "ifscCode": 1,
-                    "amount": 1,
-                    "isSuccess": 1,
+                    _id: 1,
+                    trxId: 1,
+                    accountHolderName: 1,
+                    optxId: 1,
+                    accountNumber: 1,
+                    ifscCode: 1,
+                    amount: 1,
+                    isSuccess: 1,
+                    pannelUse: 1,  // Ensure this field is correctly fetched
                     "payoutSuccessData.chargeAmount": 1,
                     "payoutSuccessData.finalAmount": 1,
-                    "createdAt": 1,
-                    "status": 1,
+                    createdAt: 1,
+                    status: 1,
                     "userInfo.userName": 1,
                     "userInfo.fullName": 1,
-                    "userInfo.memberId": 1,
-                },
+                    "userInfo.memberId": 1
+                }
             }
         ];
 
-        const aggregationOptions = {
-            readPreference: 'secondaryPreferred'
-        };
-
-        const payment = await payOutModelGenerate.aggregate(pipeline, aggregationOptions).allowDiskUse(true);
+        // Execute aggregation query
+        const payment = await payOutModelGenerate.aggregate(pipeline).allowDiskUse(true);
 
         if (!payment || payment.length === 0) {
             return res.status(400).json({ message: "Failed", data: "No Transaction Available!" });
         }
 
+        // Handle CSV Export
         if (exportToCSV === "true") {
             const fields = [
                 "_id",
@@ -157,6 +143,7 @@ export const allPayOutPayment = asyncHandler(async (req, res) => {
                 "ifscCode",
                 "amount",
                 "isSuccess",
+                "pannelUse",  // Ensure it's included in the CSV export
                 { value: "payoutSuccessData.chargeAmount", label: "Charge Amount" },
                 { value: "payoutSuccessData.finalAmount", label: "Final Amount" },
                 "createdAt",
@@ -170,23 +157,142 @@ export const allPayOutPayment = asyncHandler(async (req, res) => {
             const csv = json2csvParser.parse(payment);
 
             res.header('Content-Type', 'text/csv');
-            res.attachment(`payoutPayments-${startDate}-${endDate}.csv`);
+            res.attachment(`payoutPayments-${startDate || 'all'}-${endDate || 'all'}.csv`);
 
             return res.status(200).send(csv);
         }
 
-        const response = {
-            data: payment,
-            totalDocs: totalDocs,
-            totalPages: Math.ceil(totalDocs / limit),
-            currentPage: page
-        };
+        // API response
+        return res.status(200).json(new ApiResponse(200, payment, totalDocs));
 
-        res.status(200).json(new ApiResponse(200, payment, totalDocs));
     } catch (err) {
         res.status(500).json({ message: "Failed", data: `Internal Server Error: ${err.message}` });
     }
 });
+
+export const updatePayoutStatus = asyncHandler(async (req, res) => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+        const { trxId, bankRRN, optxId, memberId, status } = req.body;
+
+        // Validate required fields
+        if (!trxId || !memberId || !status) {
+            await session.abortTransaction();
+            session.endSession();
+            return res.status(400).json({ message: "trxId, memberId, and status are required" });
+        }
+
+        // Fetch user details
+        const user = await userDB.findOne({ memberId, isActive: true })
+            .select("userName memberId EwalletBalance minWalletBalance")
+            .session(session);
+
+        if (!user) {
+            await session.abortTransaction();
+            session.endSession();
+            return res.status(401).json({ message: "Failed", data: "Invalid Credentials or User Inactive!" });
+        }
+
+        // Update payout status in payOutGen
+        const payOutGen = await payOutModelGenerate.findOneAndUpdate(
+            { trxId: trxId },
+            { $set: { isSuccess: status.toLowerCase() === "failed" ? "Failed" : "Success" } },
+            { new: true, session }
+        );
+
+        if (!payOutGen) {
+            await session.abortTransaction();
+            session.endSession();
+            return res.status(400).json({ message: "Payout record not found" });
+        }
+
+        const { EwalletBalance } = user;
+
+        if (status.toLowerCase() === "failed") {
+            // Reverse the wallet balance
+            const updatedUserWallet = await userDB.findByIdAndUpdate(
+                user._id,
+                { $inc: { EwalletBalance: +Number(payOutGen.afterChargeAmount) } },
+                { new: true, session }
+            );
+
+            if (!updatedUserWallet) {
+                await session.abortTransaction();
+                session.endSession();
+                return res.status(500).json({ message: "Failed", data: "Wallet update failed" });
+            }
+
+            // Log wallet transaction
+            const walletModelDataStore = {
+                memberId: user._id,
+                transactionType: "Cr.",
+                transactionAmount: payOutGen.amount,
+                beforeAmount: updatedUserWallet.EwalletBalance - payOutGen.afterChargeAmount,
+                chargeAmount: payOutGen.gatwayCharge || 0,
+                afterAmount: updatedUserWallet.EwalletBalance,
+                description: `Successfully credited amount: ${Number(payOutGen.afterChargeAmount)} with transaction Id: ${trxId}`,
+                transactionStatus: "Success",
+            };
+
+            await walletModel.create([walletModelDataStore], { session });
+
+            // Commit the transaction
+            await session.commitTransaction();
+            session.endSession();
+
+            return res.status(200).json({ message: "Success", data: "Status updated successfully" });
+        }
+        else if (status.toLowerCase() === "success") {
+            if (!bankRRN) {
+                await session.abortTransaction();
+                session.endSession();
+                return res.status(400).json({ message: "bank rrn is required" });
+            }
+
+            // Store payout data
+            const payoutDataStore = {
+                memberId: user._id,
+                amount: payOutGen.amount,
+                chargeAmount: payOutGen.gatwayCharge || 0,
+                finalAmount: payOutGen.afterChargeAmount,
+                bankRRN: bankRRN,
+                trxId: trxId,
+                optxId: optxId,
+                isSuccess: "Success"
+            };
+
+            const callBackBody = {
+                optxid: optxId,
+                status: "SUCCESS",
+                txnid: trxId,
+                amount: payOutGen.amount,
+                rrn: bankRRN,
+            };
+
+            await Promise.all([
+                payOutModel.create([payoutDataStore], { session }),
+                customCallBackPayoutUser(user._id, callBackBody)
+            ]);
+
+            // Commit the transaction
+            await session.commitTransaction();
+            session.endSession();
+
+            return res.status(200).json({ message: "Success", data: "Payout processed successfully" });
+        }
+
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(400).json({ message: "Invalid status" });
+
+    } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
+        return res.status(500).json({ message: "Failed", data: "Status update failed", error: error.message });
+    }
+});
+
 
 function generateSignature(timestamp, body, path, queryString = '', method = 'POST') {
     const hmac = crypto.createHmac('sha512', process.env.FLIPZIK_SECRET_KEY);
@@ -925,6 +1031,137 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                     }
                 }
             },
+            waayupayPayOutApiMindMatrix: {
+                url: payOutApi.apiURL,
+                headers: { 'Content-Type': 'application/json', 'Accept': "application/json" },
+                data: {
+                    clientId: process.env.WAAYU_CLIENT_ID_MINDMATRIX,
+                    secretKey: process.env.WAAYU_SECRET_KEY_MINDMATRIX,
+                    number: String(mobileNumber),
+                    amount: amount.toString(),
+                    transferMode: "IMPS",
+                    accountNo: accountNumber,
+                    ifscCode,
+                    beneficiaryName: accountHolderName,
+                    vpa: "ajaybudaniya1@ybl",
+                    clientOrderId: trxId
+                },
+                res: async (apiResponse) => {
+                    const { statusCode, status, message, orderId, utr, clientOrderId } = apiResponse;
+
+                    if (status == 1) {
+                        let payoutDataStore = {
+                            memberId: user?._id,
+                            amount: amount,
+                            chargeAmount: chargeAmount,
+                            finalAmount: finalAmountDeduct,
+                            bankRRN: utr,
+                            trxId: trxId,
+                            optxId: orderId,
+                            isSuccess: "Success"
+                        }
+                        await payOutModel.create(payoutDataStore);
+                        payOutModelGen.isSuccess = "Success"
+                        await payOutModelGen.save()
+                        let callBackBody = {
+                            optxid: orderId,
+                            status: "SUCCESS",
+                            txnid: clientOrderId,
+                            amount: amount,
+                            rrn: utr,
+                        }
+
+                        customCallBackPayoutUser(user?._id, callBackBody)
+
+                        let userREspSend = {
+                            statusCode: statusCode || 0,
+                            status: status || 0,
+                            trxId: trxId || 0,
+                            opt_msg: message || "null"
+                        }
+                        return new ApiResponse(200, userREspSend)
+                    }
+                    // else if (status == 0) {
+                    //     const release = await genPayoutMutex.acquire();
+                    //     // db locking with added amount 
+                    //     const walletAddsession = await userDB.startSession();
+                    //     const transactionOptions = {
+                    //         readConcern: { level: 'linearizable' },
+                    //         writeConcern: { w: 'majority' },
+                    //         readPreference: { mode: 'primary' },
+                    //         maxTimeMS: 1500
+                    //     };
+                    //     // wallet added and store ewallet trx
+                    //     try {
+                    //         walletAddsession.startTransaction(transactionOptions);
+                    //         const opts = { walletAddsession };
+
+                    //         // Perform the update within the transaction
+                    //         // update wallet 
+                    //         let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct } }, {
+                    //             returnDocument: 'after',
+                    //             walletAddsession
+                    //         })
+
+                    //         let afterAmount = userWallet?.EwalletBalance
+                    //         let beforeAmount = userWallet?.EwalletBalance - finalAmountDeduct;
+
+                    //         // ewallet store 
+                    //         let walletModelDataStore = {
+                    //             memberId: user?._id,
+                    //             transactionType: "Cr.",
+                    //             transactionAmount: amount,
+                    //             beforeAmount: beforeAmount,
+                    //             chargeAmount: chargeAmount,
+                    //             afterAmount: afterAmount,
+                    //             description: `Successfully Cr. amount: ${Number(finalAmountDeduct)} with transaction Id: ${trxId}`,
+                    //             transactionStatus: "Success",
+                    //         }
+
+                    //         await walletModel.create([walletModelDataStore], opts)
+                    //         // Commit the transaction
+                    //         await walletAddsession.commitTransaction();
+                    //         // console.log('Transaction committed successfully');
+                    //     } catch (error) {
+                    //         console.log(error)
+                    //         await walletAddsession.abortTransaction();
+                    //         // console.error('Transaction aborted due to error:', error);
+                    //     }
+                    //     finally {
+                    //         walletAddsession.endSession();
+                    //         release()
+                    //     }
+
+                    //     payOutModelGen.isSuccess = "Failed"
+                    //     await await payOutModelGen.save()
+                    //     let userREspSend2 = {
+                    //         statusCode: statusCode || 0,
+                    //         status: status || 0,
+                    //         trxId: trxId || 0,
+                    //         opt_msg: message || "null"
+                    //     }
+                    //     return { message: "Failed", data: userREspSend2 }
+                    // } 
+                    else {
+                        // let callBackBody = {
+                        //     optxid: orderId || "",
+                        //     status: "Pending",
+                        //     txnid: clientOrderId || "",
+                        //     amount: amount,
+                        //     rrn: utr || "",
+                        // }
+                        // customCallBackPayoutUser(user?._id, callBackBody)
+
+                        let userREspSend = {
+                            statusCode: statusCode || 0,
+                            status: status || 0,
+                            trxId: trxId || 0,
+                            opt_msg: message || "Payout initiated, awaiting response from banking side."
+                        }
+                        return new ApiResponse(200, userREspSend)
+                    }
+                }
+            },
             iSmartPayPayoutApi: {
                 url: payOutApi?.apiURL,
                 headers: {
@@ -1185,9 +1422,11 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                         opt_msg: Message || "null"
                     }
 
-                    if (Status === "SUCCESS") {
+                    if (Status.toLowerCase() === "success") {
                         return new ApiResponse(200, userRespSend)
-                    } else if (Status === "FAILED") {
+                    }
+
+                    if (Status.toLowerCase() === "failed") {
                         const release = await genPayoutMutex.acquire();
                         const walletAddsession = await userDB.startSession();
                         const transactionOptions = {
@@ -1239,10 +1478,13 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                         }
 
                         return { message: "Failed", data: userRespSend }
-                    } else {
-                        return { message: "Failed", data: userRespSend }
                     }
+
+                    return { message: "Failed", data: userRespSend }
                 }
+            },
+            frecopayPayoutApi:{
+
             }
         };
 
@@ -1300,19 +1542,19 @@ export const payoutStatusCheck = asyncHandler(async (req, res) => {
     res.status(200).json(new ApiResponse(200, pack))
 });
 
-export const payoutStatusUpdate = asyncHandler(async (req, res) => {
-    let trxIdGet = req.params.trxId;
-    let pack = await payOutModelGenerate.findOne({ trxId: trxIdGet })
-    if (!pack) {
-        return res.status(400).json({ message: "Failed", data: "No Transaction !" })
-    }
-    if (pack.isSuccess === "Success" || pack.isSuccess === "Failed") {
-        return res.status(400).json({ message: "Failed", data: `Transaction Status Can't Update Already: ${pack?.isSuccess}` })
-    }
-    pack.isSuccess = req.body.isSuccess;
-    await pack.save()
-    res.status(200).json(new ApiResponse(200, pack))
-});
+// export const payoutStatusUpdate = asyncHandler(async (req, res) => {
+//     let trxIdGet = req.params.trxId;
+//     let pack = await payOutModelGenerate.findOne({ trxId: trxIdGet })
+//     if (!pack) {
+//         return res.status(400).json({ message: "Failed", data: "No Transaction !" })
+//     }
+//     if (pack.isSuccess === "Success" || pack.isSuccess === "Failed") {
+//         return res.status(400).json({ message: "Failed", data: `Transaction Status Can't Update Already: ${pack?.isSuccess}` })
+//     }
+//     pack.isSuccess = req.body.isSuccess;
+//     await pack.save()
+//     res.status(200).json(new ApiResponse(200, pack))
+// });
 
 export const payoutCallBackResponse = asyncHandler(async (req, res) => {
     try {
