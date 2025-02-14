@@ -20,53 +20,52 @@ const iSmartMutex = new Mutex();
 const flipzikMutex = new Mutex();
 const proconceptMutex = new Mutex();
 
-
 export const allPayOutPayment = asyncHandler(async (req, res) => {
-    let { page = 1, limit = 25, keyword = "", startDate, endDate, memberId, status, export: exportToCSV } = req.query;
-    page = Number(page) || 1;
-    limit = Number(limit) || 25;
-    const skip = (page - 1) * limit;
-    const trimmedKeyword = keyword.trim();
-    const trimmedMemberId = memberId && mongoose.Types.ObjectId.isValid(String(memberId))
-        ? new mongoose.Types.ObjectId(String(memberId.trim()))
-        : null;
-    const trimmedStatus = status ? status.trim() : "";
-
-    let dateFilter = {};
-    if (startDate) {
-        dateFilter.$gte = new Date(startDate);
-    }
-    if (endDate) {
-        endDate = new Date(endDate);
-        endDate.setHours(23, 59, 59, 999);
-        dateFilter.$lt = new Date(endDate);
-    }
-
-    let matchFilters = {
-        ...(Object.keys(dateFilter).length > 0 && { createdAt: dateFilter }),
-        ...(trimmedKeyword && {
-            $or: [
-                { trxId: { $regex: trimmedKeyword, $options: "i" } },
-                { accountHolderName: { $regex: trimmedKeyword, $options: "i" } }
-            ]
-        }),
-        ...(trimmedStatus && { isSuccess: { $regex: trimmedStatus, $options: "i" } }),
-        ...(trimmedMemberId && { memberId: trimmedMemberId })
-    };
-
     try {
-        const totalDocs = await payOutModelGenerate.countDocuments();
+        let { page = 1, limit = 25, keyword = "", startDate, endDate, memberId, status, export: exportToCSV } = req.query;
+        
+        page = Number(page) || 1;
+        limit = Number(limit) || 25;
+        const skip = (page - 1) * limit;
+
+        const trimmedKeyword = keyword.trim();
+        const trimmedStatus = status ? status.trim() : "";
+        const trimmedMemberId = memberId && mongoose.Types.ObjectId.isValid(String(memberId))
+            ? new mongoose.Types.ObjectId(String(memberId.trim()))
+            : null;
+
+        // Date filter
+        let dateFilter = {};
+        if (startDate) dateFilter.$gte = new Date(startDate);
+        if (endDate) {
+            endDate = new Date(endDate);
+            endDate.setHours(23, 59, 59, 999);
+            dateFilter.$lt = endDate;
+        }
+
+        // Match filters
+        let matchFilters = {
+            ...(Object.keys(dateFilter).length > 0 && { createdAt: dateFilter }),
+            ...(trimmedKeyword && {
+                $or: [
+                    { trxId: { $regex: trimmedKeyword, $options: "i" } },
+                    { accountHolderName: { $regex: trimmedKeyword, $options: "i" } }
+                ]
+            }),
+            ...(trimmedStatus && { isSuccess: { $regex: trimmedStatus, $options: "i" } }),
+            ...(trimmedMemberId && { memberId: trimmedMemberId })
+        };
+
+        // Get total count of matching documents
+        const totalDocs = await payOutModelGenerate.countDocuments(matchFilters);
         const sortDirection = Object.keys(dateFilter).length > 0 ? 1 : -1;
+
+        // Aggregation Pipeline
         const pipeline = [
             { $match: matchFilters },
             { $sort: { createdAt: sortDirection } },
 
-            ...(exportToCSV != "true"
-                ? [
-                    { $skip: skip },
-                    { $limit: limit }
-                ]
-                : []),
+            ...(exportToCSV !== "true" ? [{ $skip: skip }, { $limit: limit }] : []),
 
             {
                 $lookup: {
@@ -74,79 +73,66 @@ export const allPayOutPayment = asyncHandler(async (req, res) => {
                     localField: "memberId",
                     foreignField: "_id",
                     as: "userInfo",
-                    pipeline: [
-                        { $project: { userName: 1, fullName: 1, memberId: 1 } }
-                    ],
-                },
+                    pipeline: [{ $project: { userName: 1, fullName: 1, memberId: 1 } }]
+                }
             },
-            {
-                $unwind: {
-                    path: "$userInfo",
-                    preserveNullAndEmptyArrays: false
-                },
-            },
+            { $unwind: { path: "$userInfo", preserveNullAndEmptyArrays: true } },
+
             {
                 $lookup: {
-                    from: "payoutrecodes", // Replace with the correct collection name for payoutSuccess
+                    from: "payoutrecodes",
                     localField: "trxId",
-                    foreignField: "trxId", // Replace with the appropriate field for linking
+                    foreignField: "trxId",
                     as: "payoutSuccessData",
-                    pipeline: [
-                        { $project: { chargeAmount: 1, finalAmount: 1 } },
-                    ],
-                },
+                    pipeline: [{ $project: { chargeAmount: 1, finalAmount: 1 } }]
+                }
             },
-            {
-                $unwind: {
-                    path: "$payoutSuccessData",
-                    preserveNullAndEmptyArrays: true,
-                },
-            },
-            ...(exportToCSV == "true"
+            { $unwind: { path: "$payoutSuccessData", preserveNullAndEmptyArrays: true } },
+
+            ...(exportToCSV === "true"
                 ? [{
                     $addFields: {
                         createdAt: {
                             $dateToString: {
                                 format: "%Y-%m-%d %H:%M:%S",
-                                date: {
-                                    $add: ["$createdAt", 0] // Convert UTC to IST
-                                },
+                                date: { $add: ["$createdAt", 0] },
                                 timezone: "Asia/Kolkata"
                             }
                         }
                     }
-                }] : []),
+                }]
+                : []),
+
             {
                 $project: {
-                    "_id": 1,
-                    "trxId": 1,
-                    "accountHolderName": 1,
-                    "optxId": 1,
-                    "accountNumber": 1,
-                    "ifscCode": 1,
-                    "amount": 1,
-                    "isSuccess": 1,
+                    _id: 1,
+                    trxId: 1,
+                    accountHolderName: 1,
+                    optxId: 1,
+                    accountNumber: 1,
+                    ifscCode: 1,
+                    amount: 1,
+                    isSuccess: 1,
+                    pannelUse: 1,  // Ensure this field is correctly fetched
                     "payoutSuccessData.chargeAmount": 1,
                     "payoutSuccessData.finalAmount": 1,
-                    "createdAt": 1,
-                    "status": 1,
+                    createdAt: 1,
+                    status: 1,
                     "userInfo.userName": 1,
                     "userInfo.fullName": 1,
-                    "userInfo.memberId": 1,
-                },
+                    "userInfo.memberId": 1
+                }
             }
         ];
 
-        const aggregationOptions = {
-            readPreference: 'secondaryPreferred'
-        };
-
-        const payment = await payOutModelGenerate.aggregate(pipeline, aggregationOptions).allowDiskUse(true);
+        // Execute aggregation query
+        const payment = await payOutModelGenerate.aggregate(pipeline).allowDiskUse(true);
 
         if (!payment || payment.length === 0) {
             return res.status(400).json({ message: "Failed", data: "No Transaction Available!" });
         }
 
+        // Handle CSV Export
         if (exportToCSV === "true") {
             const fields = [
                 "_id",
@@ -157,6 +143,7 @@ export const allPayOutPayment = asyncHandler(async (req, res) => {
                 "ifscCode",
                 "amount",
                 "isSuccess",
+                "pannelUse",  // Ensure it's included in the CSV export
                 { value: "payoutSuccessData.chargeAmount", label: "Charge Amount" },
                 { value: "payoutSuccessData.finalAmount", label: "Final Amount" },
                 "createdAt",
@@ -170,19 +157,14 @@ export const allPayOutPayment = asyncHandler(async (req, res) => {
             const csv = json2csvParser.parse(payment);
 
             res.header('Content-Type', 'text/csv');
-            res.attachment(`payoutPayments-${startDate}-${endDate}.csv`);
+            res.attachment(`payoutPayments-${startDate || 'all'}-${endDate || 'all'}.csv`);
 
             return res.status(200).send(csv);
         }
 
-        const response = {
-            data: payment,
-            totalDocs: totalDocs,
-            totalPages: Math.ceil(totalDocs / limit),
-            currentPage: page
-        };
+        // API response
+        return res.status(200).json(new ApiResponse(200, payment, totalDocs));
 
-        res.status(200).json(new ApiResponse(200, payment, totalDocs));
     } catch (err) {
         res.status(500).json({ message: "Failed", data: `Internal Server Error: ${err.message}` });
     }
@@ -1500,6 +1482,9 @@ export const generatePayOut = asyncHandler(async (req, res) => {
 
                     return { message: "Failed", data: userRespSend }
                 }
+            },
+            frecopayPayoutApi:{
+
             }
         };
 
