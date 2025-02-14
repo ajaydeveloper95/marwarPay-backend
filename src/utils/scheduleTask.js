@@ -40,7 +40,7 @@ function scheduleWayuPayOutCheck() {
             createdAt: { $lt: threeHoursAgo },
             trxId:{$nin: trxIdsToAvoid}
         })
-            .sort({ createdAt: 1 }).limit(50)
+            .sort({ createdAt: -1 }).limit(50)
         try {
             if (GetData?.length !== 0) {
                 GetData.forEach(async (item) => {
@@ -413,7 +413,7 @@ function migrateData() {
             console.log("Running cron job to migrate old data...");
 
             const threeHoursAgo = new Date();
-            threeHoursAgo.setHours(threeHoursAgo.getHours() - 6)
+            threeHoursAgo.setHours(threeHoursAgo.getHours() - 12)
 
             const oldData = await qrGenerationModel.find({ createdAt: { $lt: threeHoursAgo } }).sort({ createdAt: 1 }).limit(3000);
 

@@ -823,7 +823,10 @@ export const callBackResponse = asyncHandler(async (req, res) => {
             return res.status(400).json({ message: "Failed", data: "Transaction is pending or not successful" });
         }
 
-        const pack = await qrGenerationModel.findOne({ trxId: data?.txnID });
+        let pack = await qrGenerationModel.findOne({ trxId: data?.txnID });
+        if(!pack){
+            pack = await oldQrGenerationModel.findOne({ trxId: data?.txnID });
+        }
         if (!pack || pack?.callBackStatus !== "Pending") {
             return res.status(400).json({ message: "Failed", data: `Transaction already processed or not created: ${pack?.callBackStatus}` });
         }
