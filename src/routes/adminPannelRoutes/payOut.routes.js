@@ -33,10 +33,11 @@ router.get("/payoutStatusCheck/:trxId", celebrate({
 
 router.post("/payoutStatusUpdate/:trxId", celebrate({
     body: Joi.object({
-        isSuccess: Joi.string().valid("Pending", "Failed", "Success").required(),
+        bankRRN: Joi.string().optional(),
+        isSuccess: Joi.string().valid("Failed", "Success").required(),
     }),
     params: Joi.object({
-        trxId: Joi.string().trim().min(10).max(25).required(),
+        trxId: Joi.string().trim().min(10).max(22).required(),
     })
 }), userVerify, userAuthAdmin, payoutStatusUpdate);
 

@@ -19,6 +19,7 @@ const genPayoutMutex = new Mutex();
 const iSmartMutex = new Mutex();
 const flipzikMutex = new Mutex();
 const proconceptMutex = new Mutex();
+const trxStatusUpdateMutex = new Mutex();
 
 
 export const allPayOutPayment = asyncHandler(async (req, res) => {
@@ -1436,15 +1437,77 @@ export const payoutStatusCheck = asyncHandler(async (req, res) => {
 export const payoutStatusUpdate = asyncHandler(async (req, res) => {
     let trxIdGet = req.params.trxId;
     let pack = await payOutModelGenerate.findOne({ trxId: trxIdGet })
+
     if (!pack) {
         return res.status(400).json({ message: "Failed", data: "No Transaction !" })
     }
-    if (pack.isSuccess === "Success" || pack.isSuccess === "Failed") {
+
+    if (pack.isSuccess !== "Pending") {
         return res.status(400).json({ message: "Failed", data: `Transaction Status Can't Update Already: ${pack?.isSuccess}` })
     }
-    pack.isSuccess = req.body.isSuccess;
-    await pack.save()
-    res.status(200).json(new ApiResponse(200, pack))
+
+    const finalAmountDeduct = pack?.afterChargeAmount;
+
+    if (req.body.isSuccess === "Failed") {
+        const release = await trxStatusUpdateMutex.acquire();
+        const walletUpdatesession = await userDB.startSession();
+        const transactionOptions = {
+            readConcern: { level: 'linearizable' },
+            writeConcern: { w: 'majority' },
+            readPreference: { mode: 'primary' },
+            maxTimeMS: 1500
+        };
+        // Handle failure: update wallet and store e-wallet transaction
+        try {
+            walletUpdatesession.startTransaction(transactionOptions);
+            const opts = { walletUpdatesession };
+
+            // update wallet 
+            let userWallet = await userDB.findByIdAndUpdate(pack?.memberId, { $inc: { EwalletBalance: + finalAmountDeduct } }, {
+                returnDocument: 'after',
+                walletUpdatesession
+            })
+
+            let afterAmount = userWallet?.EwalletBalance
+            let beforeAmount = userWallet?.EwalletBalance - finalAmountDeduct;
+
+            // ewallet store 
+            let walletModelDataStore = {
+                memberId: pack?.memberId,
+                transactionType: "Cr.",
+                transactionAmount: pack?.amount,
+                beforeAmount: beforeAmount,
+                chargeAmount: pack?.gatwayCharge,
+                afterAmount: afterAmount,
+                description: `#ByPannel Successfully Cr. amount: ${Number(finalAmountDeduct)} with transaction Id: ${trxId}`,
+                transactionStatus: "Success",
+            }
+
+            await walletModel.create([walletModelDataStore], opts)
+            pack.isSuccess = req.body.isSuccess;
+            await pack.save(opts)
+            await walletUpdatesession.commitTransaction();
+        } catch (error) {
+            console.log("inside error:", error.message)
+            await walletUpdatesession.abortTransaction();
+        }
+        finally {
+            walletUpdatesession.endSession();
+            release()
+        }
+
+        // end
+        return res.status(200).json(new ApiResponse(200, "Trx Status update Successfully !"))
+    }
+
+
+    if (req.body.isSuccess === "Success") {
+        pack.isSuccess = req.body.isSuccess;
+        await pack.save()
+        return res.status(200).json(new ApiResponse(200, "Trx Status update Successfully !"))
+    }
+
+    res.status(400).json({ message: "Failed", data: "Trx not success and not failed !" })
 });
 
 export const payoutCallBackResponse = asyncHandler(async (req, res) => {
