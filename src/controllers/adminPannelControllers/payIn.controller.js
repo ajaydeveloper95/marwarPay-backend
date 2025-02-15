@@ -275,7 +275,8 @@ export const allGeneratedPayment = asyncHandler(async (req, res) => {
                     "createdAt": 1,
                     "userInfo.userName": 1,
                     "userInfo.fullName": 1,
-                    "userInfo.memberId": 1
+                    "userInfo.memberId": 1,
+                    "pannelUse": 1
                 }
             }
         ];
