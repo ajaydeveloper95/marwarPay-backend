@@ -2,7 +2,7 @@ import express from "express";
 const router = express.Router();
 import { celebrate, Joi } from "celebrate";
 import { userVerify, userAuthAdmin } from "../../middlewares/userAuth.js";
-import { allPayOutPayment, allPayOutPaymentSuccess, flipzikpayCallback, generatePayOut, payoutCallBackImpactPeek, payoutCallBackResponse, payoutStatusCheck, proConceptCallback, updatePayoutStatus } from "../../controllers/adminPannelControllers/payOut.controller.js";
+import { allPayOutPayment, allPayOutPaymentSuccess, flipzikpayCallback, frescopayCallback, generatePayOut, payoutCallBackImpactPeek, payoutCallBackResponse, payoutStatusCheck, proConceptCallback, updatePayoutStatus } from "../../controllers/adminPannelControllers/payOut.controller.js";
 import multer from "multer";
 import { apiValidate } from "../../middlewares/apiValidate.js";
 const upload = multer();
@@ -42,6 +42,8 @@ router.post("/payoutCallBackImpactPeek", upload.none(), payoutCallBackImpactPeek
 router.post("/flipzikWebhook", flipzikpayCallback);
 
 router.post("/procenceptWebhook", proConceptCallback);
+
+router.post('/frescopayCallback',frescopayCallback)
 
 
 
