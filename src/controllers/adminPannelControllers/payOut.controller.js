@@ -2140,7 +2140,7 @@ export const flipzikpayCallback = asyncHandler(async (req, res) => {
                 let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(
                     item?._id,
                     { isSuccess: "Failed" },
-                    { new: true, session } // Include session for transaction
+                    { new: true, session } 
                 );
 
                 console.log(payoutModelData?.trxId, "with failed");
@@ -2184,7 +2184,7 @@ export const flipzikpayCallback = asyncHandler(async (req, res) => {
                 await session.abortTransaction();  
                 session.endSession();
                 console.error("Transaction failed:", error);
-                return res.status(500).json({ message: "Error", error: error.message });
+                return res.status(200).json({ message: "Error", error: error.message });
             }
         }
     } catch (error) {
