@@ -2132,8 +2132,60 @@ export const flipzikpayCallback = asyncHandler(async (req, res) => {
                 null
             }
             return res.status(200).json(new ApiResponse(200, null, "Successfully !"))
-        } else {
-            return res.status(200).json({ message: "Failed", data: "Trx Id and user not Found !" })
+        } else if (dataObject.status.toLowerCase() == "failed" || data?.object?.master_status?.toLowerCase() == "failed") {
+            const session = await mongoose.startSession();  
+
+            try {
+                session.startTransaction();  
+                let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(
+                    item?._id,
+                    { isSuccess: "Failed" },
+                    { new: true, session } // Include session for transaction
+                );
+
+                console.log(payoutModelData?.trxId, "with failed");
+
+                let finalEwalletDeducted = payoutModelData?.afterChargeAmount;
+
+                // Update user wallet
+                let userWallet = await userDB.findByIdAndUpdate(
+                    item?.memberId,
+                    { $inc: { EwalletBalance: +finalEwalletDeducted } },
+                    { returnDocument: "after", session }  
+                );
+
+                if (!userWallet) {
+                    throw new Error("User wallet not found!"); 
+                }
+
+                let afterAmount = userWallet?.EwalletBalance;
+                let beforeAmount = userWallet?.EwalletBalance - finalEwalletDeducted;
+ 
+                let walletModelDataStore = {
+                    memberId: item?.memberId,
+                    transactionType: "Cr.",
+                    transactionAmount: item?.amount,
+                    beforeAmount: beforeAmount,
+                    chargeAmount: item?.gatwayCharge,
+                    afterAmount: afterAmount,
+                    description: `Successfully Cr. amount: ${Number(finalEwalletDeducted)} with transaction Id: ${item?.trxId}`,
+                    transactionStatus: "Success",
+                };
+
+                // Store eWallet transaction
+                await walletModel.create([walletModelDataStore], { session }); // Pass session
+
+                // Commit the transaction
+                await session.commitTransaction();
+                session.endSession();
+
+                return res.status(200).json({ message: "Failed", data: "Transaction processed successfully!" });
+            } catch (error) {
+                await session.abortTransaction();  
+                session.endSession();
+                console.error("Transaction failed:", error);
+                return res.status(500).json({ message: "Error", error: error.message });
+            }
         }
     } catch (error) {
         return res.status(200).json({ message: "Failed", data: "Internel server Error !" })
