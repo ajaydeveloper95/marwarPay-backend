@@ -5,6 +5,7 @@ import userDB from "../../models/user.model.js"
 import { asyncHandler } from "../../utils/asyncHandler.js"
 // import { ApiError } from "../../utils/ApiError.js"
 import mongoose from "mongoose";
+import { Parser } from "json2csv"
 
 const mongoDBObJ = mongoose.Types.ObjectId;
 

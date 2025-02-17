@@ -5,12 +5,14 @@ import payInModelSuccess from "../../models/payIn.model.js"
 import { asyncHandler } from "../../utils/asyncHandler.js"
 import { ApiError } from "../../utils/ApiError.js"
 import mongoose from "mongoose";
+import { Parser } from "json2csv"
 
 const mongoDBObJ = mongoose.Types.ObjectId;
 
 export const allPayInTransactionGeneration = asyncHandler(async (req, res) => {
     let userId = req.user._id.toString()
     let { page = 1, limit = 25, keyword = "", startDate, endDate, export: exportToCSV } = req.query
+    console.log("payInUser.controller.js:137 ~ allPayInTransactionGeneration ~ req.query:", req.query);
 
     const aggregationOptions = {
         readPreference: 'secondaryPreferred'
@@ -134,6 +136,7 @@ export const allPayInTransactionGeneration = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed", data: "Some Inter Server Error!" })
     })
 })
+
 
 export const allPayInTransactionSuccess = asyncHandler(async (req, res) => {
     let userId = req.user._id.toString();
