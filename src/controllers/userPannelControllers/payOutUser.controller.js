@@ -91,7 +91,7 @@ export const allPayOutTransactionGeneration = asyncHandler(async (req, res) => {
                 : []
             ),
 
-            { $sort: { createdAt: -1 } }
+            // { $sort: { createdAt: -1 } }
         ];
 
         const payoutDocs = await payOutModelGen.aggregate(aggregationPipeline, aggregationOptions);
@@ -239,7 +239,7 @@ export const allPayOutTransactionSuccess = asyncHandler(async (req, res) => {
                 "memberId": 1
             }
         },
-        { $sort: { createdAt: -1 } }
+        // { $sort: { createdAt: -1 } }
     ]
 
     payOutModelSuccess.aggregate(aggregationPipeline, aggregationOptions).then(async (data) => {

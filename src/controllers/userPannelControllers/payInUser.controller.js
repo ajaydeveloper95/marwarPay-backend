@@ -100,7 +100,8 @@ export const allPayInTransactionGeneration = asyncHandler(async (req, res) => {
                 "userInfo.memberId": 1
             }
         },
-        { $sort: { createdAt: -1 } }]
+        // { $sort: { createdAt: -1 } }
+    ]
 
     QrGenerationModel.aggregate(aggregationPipeline, aggregationOptions).then(async (data) => {
         if (data.length === 0) {
@@ -136,7 +137,6 @@ export const allPayInTransactionGeneration = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Failed", data: "Some Inter Server Error!" })
     })
 })
-
 
 export const allPayInTransactionSuccess = asyncHandler(async (req, res) => {
     let userId = req.user._id.toString();
@@ -231,7 +231,7 @@ export const allPayInTransactionSuccess = asyncHandler(async (req, res) => {
                 "userInfo.memberId": 1
             }
         },
-        { $sort: { createdAt: -1 } }
+        // { $sort: { createdAt: -1 } }
     ]
 
     payInModelSuccess.aggregate(aggregationPipeline, aggregationOptions).then(async (data) => {
