@@ -12,8 +12,6 @@ const mongoDBObJ = mongoose.Types.ObjectId;
 export const allPayInTransactionGeneration = asyncHandler(async (req, res) => {
     let userId = req.user._id.toString()
     let { page = 1, limit = 25, keyword = "", startDate, endDate, export: exportToCSV } = req.query
-    console.log("payInUser.controller.js:137 ~ allPayInTransactionGeneration ~ req.query:", req.query);
-
     const aggregationOptions = {
         readPreference: 'secondaryPreferred'
     };
