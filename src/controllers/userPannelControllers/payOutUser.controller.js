@@ -30,7 +30,7 @@ export const allPayOutTransactionGeneration = asyncHandler(async (req, res) => {
             dateFilter.$gte = new Date(startDate);
         }
         if (endDate) {
-            dateFilter.$lte = new Date(endDate);
+            dateFilter.$lte = new Date(new Date(endDate).setHours(23, 59, 59, 999));
         }
         const sortDirection = Object.keys(dateFilter).length > 0 ? 1 : -1;
 
