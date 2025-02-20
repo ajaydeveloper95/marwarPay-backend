@@ -307,15 +307,14 @@ async function processWaayuPayOutFnMindMatrix(item, indexNumber) {
 
 let tempTrxIds = []
 function scheduleFlipzik() {
-    cron.schedule('*/10 * * * * *', async () => {
+    cron.schedule('*/30 * * * * *', async () => {
         const release = await transactionMutex.acquire();
-        let tenDaysAgo = new Date();
+        // let tenDaysAgo = new Date();
         tenDaysAgo.setDate(tenDaysAgo.getDate() - 7);
 
         let GetData = await payOutModelGenerate.find({
             isSuccess: "Pending",
             trxId: { $nin: tempTrxIds },
-            createdAt: { $gte: tenDaysAgo }
         })
             .sort({ createdAt: -1 }).limit(50)
         try {
@@ -350,7 +349,7 @@ async function processFlipzikPayout(item) {
         const opts = { session };
 
         console.log(data)
-        if (data.status === "Success" && data.master_status === "Success") {
+        if (data?.status.toLowerCase() === "success" && data?.master_status.toLowerCase() === "success") {
             // Final update and commit in transaction
             let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(item?._id, { isSuccess: "Success" }, { session, new: true });
             console.log(payoutModelData?.trxId, "with success")
@@ -384,7 +383,7 @@ async function processFlipzikPayout(item) {
 
             return true;
         }
-        else if (data.status === "Failed" || data.master_status === "Failed") {
+        else if (data?.status.toLowerCase() === "failed" || data?.master_status.toLowerCase() === "failed") {
             // trx is falied and update the status
             let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(item?._id, { isSuccess: "Failed" }, { session, new: true });
             console.log(payoutModelData?.trxId, "with falied")
@@ -1454,5 +1453,5 @@ export default function scheduleTask() {
     // payoutTaskScript()
     // payoutDeductPackageTaskScript()
     // payinScheduleTask2()
-    // scheduleFlipzik()
+    scheduleFlipzik()
 }
