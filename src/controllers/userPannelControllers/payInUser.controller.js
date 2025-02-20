@@ -1,5 +1,7 @@
 import { ApiResponse } from "../../utils/ApiResponse.js"
 import QrGenerationModel from "../../models/qrGeneration.model.js"
+import oldQrGenerationModel from "../../models/oldQrGeneration.model.js";
+
 import userDB from "../../models/user.model.js"
 import payInModelSuccess from "../../models/payIn.model.js"
 import { asyncHandler } from "../../utils/asyncHandler.js"
@@ -10,8 +12,8 @@ import { Parser } from "json2csv"
 const mongoDBObJ = mongoose.Types.ObjectId;
 
 export const allPayInTransactionGeneration = asyncHandler(async (req, res) => {
-    let userId = req.user._id.toString()
-    let { page = 1, limit = 25, keyword = "", startDate, endDate, export: exportToCSV } = req.query
+    let userId = req.user._id.toString();
+    let { page = 1, limit = 25, keyword = "", startDate, endDate, export: exportToCSV } = req.query;
     const aggregationOptions = {
         readPreference: 'secondaryPreferred'
     };
@@ -26,37 +28,40 @@ export const allPayInTransactionGeneration = asyncHandler(async (req, res) => {
         : null;
 
     let dateFilter = {};
-    if (startDate) {
-        dateFilter.$gte = new Date(startDate);
-    }
-    if (endDate) {
-        endDate = new Date(endDate);
-        endDate.setHours(23, 59, 59, 999);
-        dateFilter.$lt = new Date(endDate);
+    let dateDifferenceInDays = 0;
+
+    if (startDate && endDate) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+
+        // Corrected difference calculation (subtract 1 day before Math.ceil)
+        dateDifferenceInDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) - 1;
+
+        if (exportToCSV === "true" && dateDifferenceInDays > 31) {
+            return res.status(400).json({ message: "Failed", data: "Date range is too long to download CSV. Maximum allowed is 30 days." });
+        }
+
+        dateFilter = { $gte: start, $lt: end };
     }
 
     let matchFilters = {
-        memberId: new mongoDBObJ(userId),
+        memberId: trimmedMemberId,
         ...(Object.keys(dateFilter).length > 0 && { createdAt: dateFilter }),
         ...(trimmedKeyword && {
             $or: [
                 { trxId: { $regex: trimmedKeyword, $options: "i" } },
-                { name: { $regex: trimmedKeyword, $options: "i" } },
+                { name: { $regex: trimmedKeyword, $options: "i" } }
             ]
-        }),
-        ...(trimmedMemberId && { memberId: trimmedMemberId })
+        })
     };
+
     const sortDirection = Object.keys(dateFilter).length > 0 ? 1 : -1;
 
     const aggregationPipeline = [
-        { $match: { ...matchFilters } },
+        { $match: matchFilters },
         { $sort: { createdAt: sortDirection } },
-        ...(exportToCSV != "true"
-            ? [
-                { $skip: skip },
-                { $limit: limit }
-            ]
-            : []),
+        ...(exportToCSV !== "true" ? [{ $skip: skip }, { $limit: limit }] : []),
         {
             $lookup: {
                 from: "users",
@@ -64,13 +69,14 @@ export const allPayInTransactionGeneration = asyncHandler(async (req, res) => {
                 foreignField: "_id",
                 as: "userInfo"
             }
-        }, {
+        },
+        {
             $unwind: {
                 path: "$userInfo",
-                preserveNullAndEmptyArrays: true,
-            },
+                preserveNullAndEmptyArrays: true
+            }
         },
-        ...(exportToCSV == "true"
+        ...(exportToCSV === "true"
             ? [{
                 $addFields: {
                     createdAt: {
@@ -83,7 +89,8 @@ export const allPayInTransactionGeneration = asyncHandler(async (req, res) => {
                         }
                     }
                 }
-            }] : []),
+            }]
+            : []),
         {
             $project: {
                 "_id": 1,
@@ -97,14 +104,20 @@ export const allPayInTransactionGeneration = asyncHandler(async (req, res) => {
                 "userInfo._id": 1,
                 "userInfo.memberId": 1
             }
-        },
-        // { $sort: { createdAt: -1 } }
-    ]
-
-    QrGenerationModel.aggregate(aggregationPipeline, aggregationOptions).then(async (data) => {
-        if (data.length === 0) {
-            return res.status(200).json({ message: "Failed", data: "No Trx Avabile !" })
         }
+    ];
+
+    try {
+        let data;
+        if (exportToCSV === "true") {
+            let newTransactions = await QrGenerationModel.aggregate(aggregationPipeline, aggregationOptions).allowDiskUse(true);
+            let oldTransactions = await oldQrGenerationModel.aggregate(aggregationPipeline, aggregationOptions).allowDiskUse(true);
+            data = [...oldTransactions, ...newTransactions];
+        } else {
+            data = await QrGenerationModel.aggregate(aggregationPipeline, aggregationOptions).allowDiskUse(true);
+        }
+
+        const totalDocs = exportToCSV === "true" ? data.length : await QrGenerationModel.countDocuments(matchFilters);
 
         if (exportToCSV === "true") {
             const fields = [
@@ -116,8 +129,8 @@ export const allPayInTransactionGeneration = asyncHandler(async (req, res) => {
                 "callBackStatus",
                 "createdAt",
                 "updatedAt",
-                "_id",
-                "memberId"
+                "userInfo._id",
+                "userInfo.memberId"
             ];
             const json2csvParser = new Parser({ fields });
             const csv = json2csvParser.parse(data);
@@ -128,13 +141,15 @@ export const allPayInTransactionGeneration = asyncHandler(async (req, res) => {
             return res.status(200).send(csv);
         }
 
-        const totalDocs = await QrGenerationModel.countDocuments(matchFilters);
+        if (!data || data.length === 0) {
+            return res.status(200).json({ message: "Success", data: "No Transaction Available!" });
+        }
 
         res.status(200).json(new ApiResponse(200, data, totalDocs));
-    }).catch((error) => {
-        res.status(500).json({ message: "Failed", data: "Some Inter Server Error!" })
-    })
-})
+    } catch (error) {
+        res.status(500).json({ message: "Failed", data: `Internal Server Error: ${error.message}` });
+    }
+});
 
 export const allPayInTransactionSuccess = asyncHandler(async (req, res) => {
     let userId = req.user._id.toString();
