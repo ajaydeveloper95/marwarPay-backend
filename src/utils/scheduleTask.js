@@ -25,26 +25,60 @@ const trxIdList = [
     "seabird7010828",
     "seabird7009735"]
 const transactionMutex = new Mutex();
+const transactionMutexMindMatrix = new Mutex();
+const transactionMutexImpactPeek = new Mutex();
 const logsMutex = new Mutex();
 const loopMutex = new Mutex();
 
 let trxIdsToAvoid = []
 function scheduleWayuPayOutCheck() {
     cron.schedule('*/10 * * * * *', async () => {
-        const release = await transactionMutex.acquire();
+        const release = await transactionMutexImpactPeek.acquire();
         const threeHoursAgo = new Date();
         threeHoursAgo.setHours(threeHoursAgo.getHours() - 2)
         let GetData = await payOutModelGenerate.find({
             isSuccess: "Pending",
             pannelUse: "waayupayPayOutApiSecond",
             createdAt: { $lt: threeHoursAgo },
-            trxId:{$nin: trxIdsToAvoid}
+            trxId: { $nin: trxIdsToAvoid }
         })
             .sort({ createdAt: -1 }).limit(50)
         try {
             if (GetData?.length !== 0) {
                 GetData.forEach(async (item) => {
+                    trxIdsToAvoid.push(item?.trxId)
                     await processWaayuPayOutFn(item)
+                });
+            } else {
+                console.log("No Pending Found In Range !")
+            }
+        } catch (error) {
+            console.error('Error during payout check:', error.message);
+        } finally {
+            release()
+        }
+    });
+}
+
+let trxIdsToAvoidMindMatrix = []
+function scheduleWayuPayOutCheckMindMatrix() {
+    cron.schedule('*/2 * * * *', async () => {
+        const release = await transactionMutexMindMatrix.acquire();
+        const threeHoursAgo = new Date();
+        threeHoursAgo.setHours(threeHoursAgo.getHours() - 2)
+        let GetData = await payOutModelGenerate.find({
+            isSuccess: "Pending",
+            pannelUse: "waayupayPayOutApiMindMatrix",
+            createdAt: { $lt: threeHoursAgo },
+            trxId: { $nin: trxIdsToAvoidMindMatrix }
+        })
+            .sort({ createdAt: -1 }).limit(10)
+        try {
+            if (GetData?.length !== 0) {
+                GetData.forEach(async (item, index) => {
+                    trxIdsToAvoidMindMatrix.push(item?.trxId)
+                    // console.log(item)
+                    await processWaayuPayOutFnMindMatrix(item, index)
                 });
             } else {
                 console.log("No Pending Found In Range !")
@@ -143,15 +177,13 @@ async function processWaayuPayOutFn(item) {
             await session.commitTransaction();
             // console.log('Transaction committed successfully');
 
-            // console.log(item?.trxId)
-            await session.commitTransaction();
             // console.log("trxId updated==>", item?.trxId);
 
             return true;
         }
         else {
             console.log(item?.trxId, "not success or failed")
-            trxIdsToAvoid.push(item?.trxId)
+            // trxIdsToAvoid.push(item?.trxId)
             await session.abortTransaction();
             return true;
         }
@@ -165,6 +197,114 @@ async function processWaayuPayOutFn(item) {
         release()
     }
 }
+
+async function processWaayuPayOutFnMindMatrix(item, indexNumber) {
+    const uatUrl = "https://api.waayupay.com/api/api/api-module/payout/status-check";
+    const postAdd = {
+        clientId: process.env.WAAYU_CLIENT_ID_MINDMATRIX,
+        secretKey: process.env.WAAYU_SECRET_KEY_MINDMATRIX,
+        clientOrderId: item?.trxId,
+    };
+    const header = {
+        headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        },
+    };
+
+    const { data } = await axios.post(uatUrl, postAdd, header);
+    const session = await userDB.startSession({ readPreference: 'primary', readConcern: { level: "majority" }, writeConcern: { w: "majority" } });
+    const release = await transactionMutex.acquire();
+    try {
+        session.startTransaction();
+        const opts = { session };
+        if (data?.status === 1) {
+            // Final update and commit in transaction
+            let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(item?._id, { isSuccess: "Success" }, { session, new: true });
+            console.log(payoutModelData?.trxId, "with success, Index", indexNumber)
+            let finalEwalletDeducted = payoutModelData?.afterChargeAmount
+
+            let PayoutStoreData = {
+                memberId: item?.memberId,
+                amount: item?.amount,
+                chargeAmount: item?.gatwayCharge || item?.afterChargeAmount - item?.amount,
+                finalAmount: finalEwalletDeducted,
+                bankRRN: data?.utr,
+                trxId: data?.clientOrderId,
+                optxId: data?.orderId,
+                isSuccess: "Success",
+            }
+
+            let v = await payOutModel.create([PayoutStoreData], opts)
+            await session.commitTransaction();
+
+            // callback send 
+            let callBackBody = {
+                optxid: data?.orderId,
+                status: "SUCCESS",
+                txnid: data?.clientOrderId,
+                amount: item?.amount,
+                rrn: data?.utr,
+            }
+            customCallBackPayoutUser(item?.memberId, callBackBody)
+
+            return true;
+        }
+        else if (data?.status === 4 || data?.status === 0 || data?.status == null) {
+            // trx is falied and update the status
+            let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(item?._id, { isSuccess: "Failed" }, { session, new: true });
+            console.log(payoutModelData?.trxId, "with falied, Index", indexNumber)
+            let finalEwalletDeducted = payoutModelData?.afterChargeAmount
+
+            // update ewallets
+            // update wallet 
+            let userWallet = await userDB.findByIdAndUpdate(item?.memberId, { $inc: { EwalletBalance: + finalEwalletDeducted } }, {
+                returnDocument: 'after',
+                session
+            })
+
+            let afterAmount = userWallet?.EwalletBalance
+            let beforeAmount = userWallet?.EwalletBalance - finalEwalletDeducted;
+
+
+            // ewallet store 
+            let walletModelDataStore = {
+                memberId: item?.memberId,
+                transactionType: "Cr.",
+                transactionAmount: item?.amount,
+                beforeAmount: beforeAmount,
+                chargeAmount: item?.gatwayCharge,
+                afterAmount: afterAmount,
+                description: `Successfully Cr. amount: ${Number(finalEwalletDeducted)} with transaction Id: ${item?.trxId}`,
+                transactionStatus: "Success",
+            }
+
+            await walletModel.create([walletModelDataStore], opts)
+            // Commit the transaction
+            await session.commitTransaction();
+            // console.log('Transaction committed successfully');
+
+            // console.log("trxId updated==>", item?.trxId);
+
+            return true;
+        }
+        else {
+            console.log(item?.trxId, "not success or failed ,Index", indexNumber)
+            // trxIdsToAvoidMindMatrix.push(item?.trxId)
+            await session.abortTransaction();
+            return true;
+        }
+
+    } catch (error) {
+        console.log("inside the error", error)
+        await session.abortTransaction();
+        return false
+    } finally {
+        session.endSession();
+        release()
+    }
+}
+
 let tempTrxIds = []
 function scheduleFlipzik() {
     cron.schedule('*/10 * * * * *', async () => {
@@ -1307,6 +1447,7 @@ async function FailedTOsuccessHelp(item) {
 export default function scheduleTask() {
     // FailedToSuccessPayout()
     // scheduleWayuPayOutCheck()
+    scheduleWayuPayOutCheckMindMatrix()
     // logsClearFunc()
     // migrateData()
     // payinScheduleTask()
