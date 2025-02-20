@@ -307,18 +307,19 @@ async function processWaayuPayOutFnMindMatrix(item, indexNumber) {
 
 let tempTrxIds = []
 function scheduleFlipzik() {
-    cron.schedule('*/30 * * * * *', async () => {
+    cron.schedule('*/10 * * * * *', async () => {
         const release = await transactionMutex.acquire();
         // let tenDaysAgo = new Date();
-        tenDaysAgo.setDate(tenDaysAgo.getDate() - 7);
+        // tenDaysAgo.setDate(tenDaysAgo.getDate() - 7);
 
         let GetData = await payOutModelGenerate.find({
             isSuccess: "Pending",
             trxId: { $nin: tempTrxIds },
         })
-            .sort({ createdAt: -1 }).limit(50)
+            .sort({ createdAt: -1 }).limit(1)
         try {
             for (const item of GetData) {
+                // console.log(item)
                 await processFlipzikPayout(item)
             }
             // trxIds.forEach(async (item) => {
@@ -349,7 +350,7 @@ async function processFlipzikPayout(item) {
         const opts = { session };
 
         console.log(data)
-        if (data?.status.toLowerCase() === "success" && data?.master_status.toLowerCase() === "success") {
+        if (data?.status?.toLowerCase() === "success" && data?.master_status?.toLowerCase() === "success") {
             // Final update and commit in transaction
             let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(item?._id, { isSuccess: "Success" }, { session, new: true });
             console.log(payoutModelData?.trxId, "with success")
@@ -383,7 +384,7 @@ async function processFlipzikPayout(item) {
 
             return true;
         }
-        else if (data?.status.toLowerCase() === "failed" || data?.master_status.toLowerCase() === "failed") {
+        else if (data?.status?.toLowerCase() === "failed" || data?.master_status?.toLowerCase() === "failed") {
             // trx is falied and update the status
             let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(item?._id, { isSuccess: "Failed" }, { session, new: true });
             console.log(payoutModelData?.trxId, "with falied")
