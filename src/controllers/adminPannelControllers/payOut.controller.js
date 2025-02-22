@@ -949,7 +949,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                         }
                         return new ApiResponse(200, userREspSend)
                     }
-                    else if (status == 0) {
+                    else if (status == 0 || statusCode == 0) {
                         const release = await genPayoutMutex.acquire();
                         // db locking with added amount 
                         const walletAddsession = await userDB.startSession();
@@ -1080,7 +1080,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                         }
                         return new ApiResponse(200, userREspSend)
                     }
-                    else if (status == 0) {
+                    else if (status == 0 || statusCode == 0) {
                         const release = await genPayoutMutex.acquire();
                         // db locking with added amount 
                         const walletAddsession = await userDB.startSession();
