@@ -31,7 +31,7 @@ const logsMutex = new Mutex();
 const loopMutex = new Mutex();
 
 let trxIdsToAvoid = []
-function scheduleWayuPayOutCheck() {
+function scheduleWayuPayOutCheckSecond() {
     cron.schedule('*/10 * * * * *', async () => {
         const release = await transactionMutexImpactPeek.acquire();
         const threeHoursAgo = new Date();
@@ -42,12 +42,12 @@ function scheduleWayuPayOutCheck() {
             createdAt: { $lt: threeHoursAgo },
             trxId: { $nin: trxIdsToAvoid }
         })
-            .sort({ createdAt: -1 }).limit(50)
+            .sort({ createdAt: -1 }).limit(1)
         try {
             if (GetData?.length !== 0) {
                 GetData.forEach(async (item) => {
                     trxIdsToAvoid.push(item?.trxId)
-                    await processWaayuPayOutFn(item)
+                    await processWaayuPayOutFnSecond(item)
                 });
             } else {
                 console.log("No Pending Found In Range !")
@@ -91,7 +91,7 @@ function scheduleWayuPayOutCheckMindMatrix() {
     });
 }
 
-async function processWaayuPayOutFn(item) {
+async function processWaayuPayOutFnSecond(item) {
     const uatUrl = "https://api.waayupay.com/api/api/api-module/payout/status-check";
     const postAdd = {
         clientId: process.env.WAAYU_CLIENT_ID_TWO,
