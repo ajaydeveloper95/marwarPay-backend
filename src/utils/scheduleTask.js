@@ -17,7 +17,7 @@ import upiWalletModel from "../models/upiWallet.model.js";
 import EwalletModel from "../models/Ewallet.model.js";
 import { customCallBackPayoutUser } from "../controllers/adminPannelControllers/payOut.controller.js";
 import crypto from "crypto";
-import jsonFile from "../../public/RavishJsonEntryEwallets.json" with { type: "json" };
+// import jsonFile from "../../public/elbolineJsonEntry.json" with { type: "json" };
 const matchingTrxIds = [
     "seabird6210244",
 ]
@@ -1448,129 +1448,129 @@ async function FailedTOsuccessHelp(item) {
 }
 
 function EwalletManuplation() {
-    // let amount = 0;
-    // let withchar = 0;
-    jsonFile.forEach(async (item, index) => {
+    let amount = 0;
+    let withchar = 0;
+    // jsonFile.forEach(async (item, index) => {
 
-        // if (index > 2) {
-        //     return false;
-        // }
-        // console.log(item)
-        let trxType = "Dr."
-        if (item?.memberId === "6746b23b524aec0ca9a81819") {
-            // amount += item?.transactionAmount;
-            // withchar += item?.Total
-            await EwalletManuplationFunctionGen(item, trxType)
-        }
-    })
-    // console.log("total amount",amount)
-    // console.log("total with char amount",withchar)
+    //     // if (index > 2) {
+    //     //     return false;
+    //     // }
+    //     // console.log(item)
+    //     let trxType = "Dr."
+    //     if (item?.memberId === "67600d55714301611294469e") {
+    //         amount += item?.transactionAmount;
+    //         withchar += item?.Total
+    //         await EwalletManuplationFunctionGen(item, trxType)
+    //     }
+    // })
+    console.log("total amount", amount)
+    console.log("total with char amount", withchar)
 }
 
-async function EwalletManuplationFunctionGen(item, transactionType) {
-    if (transactionType === "Dr.") {
-        console.log("It's Dr. !!")
-        // start debit
-        const session = await userDB.startSession({ readPreference: 'primary', readConcern: { level: "majority" }, writeConcern: { w: "majority" } });
-        const release = await eWalletMutexQue.acquire();
-        try {
-            session.startTransaction();
-            const opts = { session };
+// async function EwalletManuplationFunctionGen(item, transactionType) {
+//     if (transactionType === "Dr.") {
+//         console.log("It's Dr. !!")
+//         // start debit
+//         const session = await userDB.startSession({ readPreference: 'primary', readConcern: { level: "majority" }, writeConcern: { w: "majority" } });
+//         const release = await eWalletMutexQue.acquire();
+//         try {
+//             session.startTransaction();
+//             const opts = { session };
 
-            let finalEwalletDeducted = item?.Total
+//             let finalEwalletDeducted = item?.Total
 
-            // update ewallets
-            // update wallet 
-            let userWallet = await userDB.findByIdAndUpdate(item?.memberId, { $inc: { EwalletBalance: - finalEwalletDeducted } }, {
-                returnDocument: 'after',
-                session
-            })
+//             // update ewallets
+//             // update wallet 
+//             let userWallet = await userDB.findByIdAndUpdate(item?.memberId, { $inc: { EwalletBalance: - finalEwalletDeducted } }, {
+//                 returnDocument: 'after',
+//                 session
+//             })
 
-            let afterAmount = userWallet?.EwalletBalance
-            let beforeAmount = userWallet?.EwalletBalance + finalEwalletDeducted;
-
-
-            // ewallet store 
-            let walletModelDataStore = {
-                memberId: item?.memberId,
-                transactionType: "Dr.",
-                transactionAmount: item?.transactionAmount,
-                beforeAmount: beforeAmount,
-                chargeAmount: item?.chargeAmount,
-                afterAmount: afterAmount,
-                description: `Successfully Dr. amount: ${Number(finalEwalletDeducted)} with transaction Id: ${item?.TXNID}`,
-                transactionStatus: "Success",
-            }
-
-            await walletModel.create([walletModelDataStore], opts)
-            // Commit the transaction
-            await session.commitTransaction();
-            console.log("Success Dr. trx :", item?.TXNID)
-            return true;
-
-        } catch (error) {
-            console.log("inside the error", error)
-            await session.abortTransaction();
-            return false
-        } finally {
-            session.endSession();
-            release()
-        }
-        // end debit
-    } else if (transactionType === "Cr.") {
-        console.log("It's Cr. !!")
-        // start Credit
-        const session = await userDB.startSession({ readPreference: 'primary', readConcern: { level: "majority" }, writeConcern: { w: "majority" } });
-        const release = await eWalletMutexQue.acquire();
-        try {
-            session.startTransaction();
-            const opts = { session };
-
-            let finalEwalletDeducted = item?.Total
-
-            // update ewallets
-            // update wallet 
-            let userWallet = await userDB.findByIdAndUpdate(item?.memberId, { $inc: { EwalletBalance: + finalEwalletDeducted } }, {
-                returnDocument: 'after',
-                session
-            })
-
-            let afterAmount = userWallet?.EwalletBalance
-            let beforeAmount = userWallet?.EwalletBalance - finalEwalletDeducted;
+//             let afterAmount = userWallet?.EwalletBalance
+//             let beforeAmount = userWallet?.EwalletBalance + finalEwalletDeducted;
 
 
-            // ewallet store 
-            let walletModelDataStore = {
-                memberId: item?.memberId,
-                transactionType: "Cr.",
-                transactionAmount: item?.transactionAmount,
-                beforeAmount: beforeAmount,
-                chargeAmount: item?.chargeAmount,
-                afterAmount: afterAmount,
-                description: `Successfully Cr. amount: ${Number(finalEwalletDeducted)} with transaction Id: ${item?.TXNID}`,
-                transactionStatus: "Success",
-            }
+//             // ewallet store 
+//             let walletModelDataStore = {
+//                 memberId: item?.memberId,
+//                 transactionType: "Dr.",
+//                 transactionAmount: item?.transactionAmount,
+//                 beforeAmount: beforeAmount,
+//                 chargeAmount: item?.chargeAmount,
+//                 afterAmount: afterAmount,
+//                 description: `Successfully Dr. amount: ${Number(finalEwalletDeducted)} with transaction Id: ${item?.TXNID}`,
+//                 transactionStatus: "Success",
+//             }
 
-            await walletModel.create([walletModelDataStore], opts)
-            // Commit the transaction
-            await session.commitTransaction();
-            console.log("Success Cr. trx :", item?.TXNID)
-            return true;
+//             await walletModel.create([walletModelDataStore], opts)
+//             // Commit the transaction
+//             await session.commitTransaction();
+//             console.log("Success Dr. trx :", item?.TXNID)
+//             return true;
 
-        } catch (error) {
-            console.log("inside the error", error)
-            await session.abortTransaction();
-            return false
-        } finally {
-            session.endSession();
-            release()
-        }
-        // end Credit
-    } else {
-        console.log("Not Cr. and Dr. !!")
-        return false
-    }
-}
+//         } catch (error) {
+//             console.log("inside the error", error)
+//             await session.abortTransaction();
+//             return false
+//         } finally {
+//             session.endSession();
+//             release()
+//         }
+//         // end debit
+//     } else if (transactionType === "Cr.") {
+//         console.log("It's Cr. !!")
+//         // start Credit
+//         const session = await userDB.startSession({ readPreference: 'primary', readConcern: { level: "majority" }, writeConcern: { w: "majority" } });
+//         const release = await eWalletMutexQue.acquire();
+//         try {
+//             session.startTransaction();
+//             const opts = { session };
+
+//             let finalEwalletDeducted = item?.Total
+
+//             // update ewallets
+//             // update wallet 
+//             let userWallet = await userDB.findByIdAndUpdate(item?.memberId, { $inc: { EwalletBalance: + finalEwalletDeducted } }, {
+//                 returnDocument: 'after',
+//                 session
+//             })
+
+//             let afterAmount = userWallet?.EwalletBalance
+//             let beforeAmount = userWallet?.EwalletBalance - finalEwalletDeducted;
+
+
+//             // ewallet store 
+//             let walletModelDataStore = {
+//                 memberId: item?.memberId,
+//                 transactionType: "Cr.",
+//                 transactionAmount: item?.transactionAmount,
+//                 beforeAmount: beforeAmount,
+//                 chargeAmount: item?.chargeAmount,
+//                 afterAmount: afterAmount,
+//                 description: `Successfully Cr. amount: ${Number(finalEwalletDeducted)} with transaction Id: ${item?.TXNID}`,
+//                 transactionStatus: "Success",
+//             }
+
+//             await walletModel.create([walletModelDataStore], opts)
+//             // Commit the transaction
+//             await session.commitTransaction();
+//             console.log("Success Cr. trx :", item?.TXNID)
+//             return true;
+
+//         } catch (error) {
+//             console.log("inside the error", error)
+//             await session.abortTransaction();
+//             return false
+//         } finally {
+//             session.endSession();
+//             release()
+//         }
+//         // end Credit
+//     } else {
+//         console.log("Not Cr. and Dr. !!")
+//         return false
+//     }
+// }
 
 export default function scheduleTask() {
     // FailedToSuccessPayout()
