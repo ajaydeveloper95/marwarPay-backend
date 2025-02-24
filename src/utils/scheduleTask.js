@@ -1,3 +1,6 @@
+import { fileURLToPath } from "url";
+import path from "path";
+import fs from "fs";
 import cron from "node-cron";
 import axios from "axios";
 import userDB from "../models/user.model.js";
@@ -18,6 +21,10 @@ import EwalletModel from "../models/Ewallet.model.js";
 import { customCallBackPayoutUser } from "../controllers/adminPannelControllers/payOut.controller.js";
 import crypto from "crypto";
 // import jsonFile from "../../public/elbolineJsonEntry.json" with { type: "json" };
+import payOutGenerateModel from "../models/payOutGenerate.model.js";
+import oldPayOutGenerateModel from "../models/oldPayOutGenerate.model.js";
+
+
 const matchingTrxIds = [
     "seabird6210244",
 ]
@@ -579,6 +586,51 @@ function migrateData() {
 
                 const oldDataIds = oldData.map(item => item._id);
                 await qrGenerationModel.deleteMany({ _id: { $in: oldDataIds } });
+
+                console.log(`Successfully migrated ${oldData.length} records.`);
+            } else {
+                console.log("No data older than 1 day to migrate.");
+            }
+        } catch (error) {
+            console.log("error=>", error.message);
+        } finally {
+            release()
+        }
+    }
+    )
+}
+
+function migratePayoutData() {
+    cron.schedule('*/20 * * * * *', async () => {
+        const release = await transactionMutex.acquire();
+        try {
+            console.log("Running cron job to migrate old data...");
+
+            const threeHoursAgo = new Date();
+            threeHoursAgo.setHours(threeHoursAgo.getHours() - 24)
+
+            const oldData = await payOutGenerateModel.find({ createdAt: { $lt: threeHoursAgo } }).sort({ createdAt: -1 }).limit(3000);
+
+            if (oldData.length > 0) {
+                const newData = oldData.map(item => ({
+                    memberId: new mongoose.Types.ObjectId((String(item?.memberId))),
+                    isSuccess: String(item?.isSuccess),
+                    amount: Number(item?.amount),
+                    trxId: String(item?.trxId),
+                    afterChargeAmount: Number(item?.afterChargeAmount),
+                    gatwayCharge: Number(item?.gatwayCharge),
+                    ifscCode: String(item?.ifscCode),
+                    accountNumber: String(item?.accountNumber),
+                    pannelUse: String(item?.pannelUse),
+                    accountHolderName: String(item?.accountHolderName),
+                    mobileNumber: String(item?.mobileNumber),
+                    migratedAt: new Date(),
+                })
+                );
+                await oldPayOutGenerateModel.insertMany(newData);
+
+                const oldDataIds = oldData.map(item => item._id);
+                await payOutGenerateModel.deleteMany({ _id: { $in: oldDataIds } });
 
                 console.log(`Successfully migrated ${oldData.length} records.`);
             } else {
@@ -1245,6 +1297,7 @@ function payoutDeductDoubleTaskScript() {
         }
     });
 }
+
 var scriptRan = false
 function payoutDeductPackageTaskScript() {
     cron.schedule('*/10 * * * * *', async () => {
@@ -1578,21 +1631,21 @@ function EwalletManuplation() {
 async function payOutDuplicateEntryRemove() {
     // remove duplicate entry
     let duplicate = await payOutModel.aggregate([
-    {
-        $group: {
-            _id: {
-                trxId: "$trxId",
-                bankRRN: "$bankRRN",
-                optxId: "$optxId",
-                amount: "$amount"
-            },
-            count: { $sum: 1 },
-            docs: { $push: "$_id" }
+        {
+            $group: {
+                _id: {
+                    trxId: "$trxId",
+                    bankRRN: "$bankRRN",
+                    optxId: "$optxId",
+                    amount: "$amount"
+                },
+                count: { $sum: 1 },
+                docs: { $push: "$_id" }
+            }
+        },
+        {
+            $match: { count: { $gt: 1 } }
         }
-    },
-    {
-        $match: { count: { $gt: 1 } }
-    }
     ])
 
     duplicate.forEach(async (doc) => {
@@ -1601,6 +1654,169 @@ async function payOutDuplicateEntryRemove() {
         await payOutModel.deleteMany({ _id: { $in: doc.docs } });
     });
     return true
+}
+
+async function processRectification(item) {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+        const creditEntries = await EwalletModel.countDocuments(
+            { description: { $regex: item?.trxId, $options: 'i' }, transactionType: "Cr." }
+        ).session(session);
+
+        const debitEntries = await EwalletModel.countDocuments(
+            { description: { $regex: item?.trxId, $options: 'i' }, transactionType: "Dr." }
+        ).session(session);
+
+        if (creditEntries > debitEntries) {
+            const extraEntries = creditEntries - debitEntries;
+            const finalEwalletDeduction = extraEntries * item?.afterChargeAmount;
+            console.log("Extra amount>>", item?.trxId, finalEwalletDeduction);
+
+            const userWallet = await userDB.findOneAndUpdate(
+                { _id: item?.memberId },
+                { $inc: { EwalletBalance: -finalEwalletDeduction } },
+                { session, returnDocument: 'after' }
+            );
+
+            if (!userWallet) throw new Error("User not found");
+
+            let beforeAmount = userWallet?.EwalletBalance + finalEwalletDeduction;
+            let afterAmount = userWallet?.EwalletBalance;
+
+            let walletEntries = [];
+            for (let i = 0; i < extraEntries; i++) {
+                let entry = {
+                    memberId: item?.memberId,
+                    transactionType: "Dr.",
+                    transactionAmount: item?.afterChargeAmount,
+                    beforeAmount: beforeAmount,
+                    chargeAmount: item?.gatwayCharge,
+                    afterAmount: beforeAmount - item?.afterChargeAmount,
+                    description: `Successfully Dr. amount: ${Number(item?.afterChargeAmount)} with transaction Id: ${item?.trxId}`,
+                    transactionStatus: "Success",
+                };
+                walletEntries.push(entry);
+                beforeAmount -= item?.afterChargeAmount;
+            }
+
+            await walletModel.insertMany(walletEntries, { session });
+            item.trxId = `${item.trxId} rectified`
+            console.log("Transaction rectified with trxId:", item?.trxId);
+
+        } else if (debitEntries > creditEntries) {
+            console.log("Debit more than credit", debitEntries - creditEntries);
+        } else {
+            console.log("No extra entries");
+        }
+
+        await session.commitTransaction();
+        session.endSession();
+        return true;
+    } catch (error) {
+        console.error("Transaction Error:", error);
+        await session.abortTransaction();
+        session.endSession();
+        return false;
+    }
+}
+
+// async function rectifyingMultipleCredits() {
+//     cron.schedule('*/30 * * * * *', async () => {
+//         console.time("Batch Execution Time");  
+
+//         const threeHoursAgo = new Date();
+//         threeHoursAgo.setHours(threeHoursAgo.getHours() - 2);
+
+//         try {
+//             let GetData = await payOutModelGenerate.find({
+//                 isSuccess: "Failed",
+//                 createdAt: {
+//                     $gte: new Date("2025-02-01T00:00:00Z"),
+//                     $lte: new Date()
+//                 },
+//                 trxId: { $nin: trxIdsToAvoid }
+//             }).sort({ createdAt: -1 }).limit(20);  
+
+//             if (GetData.length !== 0) {
+//                 for (const item of GetData) {
+//                     await processRectification(item);  
+//                 }
+//             } else {
+//                 console.log("No Pending Found In Range!");
+//             }
+//         } catch (error) {
+//             console.error("Error during payout check:", error.message);
+//         }
+
+//         console.timeEnd("Batch Execution Time");  
+//     });
+// }
+
+
+
+
+// File path for storing processed trxIds
+
+// Define __dirname manually
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const processedFilePath = path.join(__dirname, "processed_jan_trx.json");
+
+// Function to read processed trxIds from JSON file
+function loadProcessedTrxIds() {
+    try {
+        if (!fs.existsSync(processedFilePath)) return new Set();
+        const data = fs.readFileSync(processedFilePath, "utf-8");
+        return new Set(JSON.parse(data));
+    } catch (error) {
+        console.error("Error loading processed trxIds:", error);
+        return new Set();
+    }
+}
+
+// Function to write processed trxIds to JSON file
+function saveProcessedTrxIds(trxIds) {
+    try {
+        fs.writeFileSync(processedFilePath, JSON.stringify([...trxIds], null, 2));
+    } catch (error) {
+        console.error("Error saving processed trxIds:", error);
+    }
+}
+
+let processedTrxIds = loadProcessedTrxIds();
+
+async function rectifyingMultipleCredits() {
+    cron.schedule("*/30 * * * * *", async () => {
+        console.time("Batch Execution Time");
+
+        try {
+            let GetData = await payOutModelGenerate.find({
+                isSuccess: "Failed",
+                createdAt: {
+                    $gte: new Date("2025-01-01T00:00:00Z"),
+                    $lte: new Date("2025-01-31T23:59:59Z")
+                },
+                trxId: { $nin: [...processedTrxIds] }
+            }).sort({ createdAt: -1 }).limit(20);
+
+            if (GetData.length !== 0) {
+                for (const item of GetData) {
+                    const success = await processRectification(item);
+                    if (success) {
+                        processedTrxIds.add(item.trxId);
+                    }
+                }
+                saveProcessedTrxIds(processedTrxIds);
+            } else {
+                console.log("No Pending Found In Range!");
+            }
+        } catch (error) {
+            console.error("Error during payout check:", error.message);
+        }
+
+        console.timeEnd("Batch Execution Time");
+    });
 }
 
 export default function scheduleTask() {
@@ -1616,4 +1832,6 @@ export default function scheduleTask() {
     // scheduleFlipzik()
     // EwalletManuplation()
     // payOutDuplicateEntryRemove()
+    // rectifyingMultipleCredits()
+    // migratePayoutData()
 }

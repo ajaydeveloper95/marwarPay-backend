@@ -13,6 +13,8 @@ import { Mutex } from "async-mutex";
 import mongoose from "mongoose";
 import { Parser } from "json2csv";
 import crypto from "crypto";
+import payOutGenerateModel from "../../models/payOutGenerate.model.js";
+import oldPayOutGenerateModel from "../../models/oldPayOutGenerate.model.js";
 
 
 const genPayoutMutex = new Mutex();
@@ -125,14 +127,24 @@ export const allPayOutPayment = asyncHandler(async (req, res) => {
             }
         ];
 
-        // Execute aggregation query
-        const payment = await payOutModelGenerate.aggregate(pipeline).allowDiskUse(true);
+        const aggregationOptions = {
+            readPreference: 'secondaryPreferred'
+        };
+
+        let payment
+        if (exportToCSV == "true" || trimmedKeyword) {
+            let newPayments = await payOutGenerateModel.aggregate(pipeline, aggregationOptions).allowDiskUse(true)
+            let oldPayments = await oldPayOutGenerateModel.aggregate(pipeline, aggregationOptions).allowDiskUse(true)
+            payment = [...oldPayments, ...newPayments]
+
+        } else {
+            payment = await payOutGenerateModel.aggregate(pipeline, aggregationOptions).allowDiskUse(true)
+        }
 
         if (!payment || payment.length === 0) {
             return res.status(400).json({ message: "Failed", data: "No Transaction Available!" });
         }
 
-        // Handle CSV Export
         if (exportToCSV === "true") {
             const fields = [
                 "_id",
@@ -162,7 +174,6 @@ export const allPayOutPayment = asyncHandler(async (req, res) => {
             return res.status(200).send(csv);
         }
 
-        // API response
         return res.status(200).json(new ApiResponse(200, payment, totalDocs));
 
     } catch (err) {
