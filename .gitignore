@@ -4,5 +4,8 @@
 # misu
 .env
 
+/src/utils/processed_trx.json
+/src/utils/processed_jan_trx.json
+
 
 
