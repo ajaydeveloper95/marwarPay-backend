@@ -1575,6 +1575,34 @@ function EwalletManuplation() {
 //     }
 // }
 
+async function payOutDuplicateEntryRemove() {
+    // remove duplicate entry
+    let duplicate = await payOutModel.aggregate([
+    {
+        $group: {
+            _id: {
+                trxId: "$trxId",
+                bankRRN: "$bankRRN",
+                optxId: "$optxId",
+                amount: "$amount"
+            },
+            count: { $sum: 1 },
+            docs: { $push: "$_id" }
+        }
+    },
+    {
+        $match: { count: { $gt: 1 } }
+    }
+    ])
+
+    duplicate.forEach(async (doc) => {
+        doc.docs.shift();  //keep one
+        console.log(doc.docs)
+        await payOutModel.deleteMany({ _id: { $in: doc.docs } });
+    });
+    return true
+}
+
 export default function scheduleTask() {
     // FailedToSuccessPayout()
     // scheduleWayuPayOutCheck()
@@ -1587,4 +1615,5 @@ export default function scheduleTask() {
     // payinScheduleTask2()
     // scheduleFlipzik()
     // EwalletManuplation()
+    // payOutDuplicateEntryRemove()
 }
