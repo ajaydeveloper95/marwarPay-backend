@@ -96,6 +96,10 @@ const userSchema = new Schema({
         type: Number,
         default: 0
     },
+    EwalletFundLock: {
+        type: Number,
+        default: 0
+    },
     isActive: {
         type: Boolean,
         default: true

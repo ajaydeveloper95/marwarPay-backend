@@ -1,7 +1,7 @@
 import express from "express";
 import { getUser, addUser, registerUser, loginUser, logOut, getSingleUser, updateUser, authTokenReVerify } from "../../controllers/adminPannelControllers/user.controller.js";
 import { celebrate, Joi } from "celebrate";
-import { userVerify, userAuthAdmin } from "../../middlewares/userAuth.js"; 
+import { userVerify, userAuthAdmin } from "../../middlewares/userAuth.js";
 const router = express.Router();
 
 router.get("/getUsers", userVerify, getUser);
@@ -29,6 +29,7 @@ router.post("/addUser", celebrate({
             pincode: Joi.number().required()
         }),
         minWalletBalance: Joi.number().required(),
+        EwalletFundLock: Joi.number().required(),
         isActive: Joi.boolean().required(),
     })
 }), userVerify, addUser)
@@ -51,12 +52,13 @@ router.post("/updateUser/:id", [celebrate({
         minWalletBalance: Joi.number().optional(),
         upiWalletBalance: Joi.number().optional(),
         EwalletBalance: Joi.number().optional(),
+        EwalletFundLock: Joi.number().optional(),
         isActive: Joi.boolean().optional(),
     }),
     params: Joi.object({
         id: Joi.string().trim().length(24).required(),
     })
-}), userVerify, userAuthAdmin], updateUser) 
+}), userVerify, userAuthAdmin], updateUser)
 
 router.post("/login", celebrate({
     body: Joi.object({
