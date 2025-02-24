@@ -17,6 +17,7 @@ import upiWalletModel from "../models/upiWallet.model.js";
 import EwalletModel from "../models/Ewallet.model.js";
 import { customCallBackPayoutUser } from "../controllers/adminPannelControllers/payOut.controller.js";
 import crypto from "crypto";
+// import jsonFile from "../../public/elbolineJsonEntry.json" with { type: "json" };
 const matchingTrxIds = [
     "seabird6210244",
 ]
@@ -25,26 +26,30 @@ const trxIdList = [
     "seabird7010828",
     "seabird7009735"]
 const transactionMutex = new Mutex();
+const transactionMutexMindMatrix = new Mutex();
+const transactionMutexImpactPeek = new Mutex();
+const eWalletMutexQue = new Mutex();
 const logsMutex = new Mutex();
 const loopMutex = new Mutex();
 
 let trxIdsToAvoid = []
-function scheduleWayuPayOutCheck() {
+function scheduleWayuPayOutCheckSecond() {
     cron.schedule('*/10 * * * * *', async () => {
-        const release = await transactionMutex.acquire();
+        const release = await transactionMutexImpactPeek.acquire();
         const threeHoursAgo = new Date();
         threeHoursAgo.setHours(threeHoursAgo.getHours() - 2)
         let GetData = await payOutModelGenerate.find({
             isSuccess: "Pending",
             pannelUse: "waayupayPayOutApiSecond",
             createdAt: { $lt: threeHoursAgo },
-            trxId:{$nin: trxIdsToAvoid}
+            trxId: { $nin: trxIdsToAvoid }
         })
-            .sort({ createdAt: -1 }).limit(50)
+            .sort({ createdAt: -1 }).limit(1)
         try {
             if (GetData?.length !== 0) {
                 GetData.forEach(async (item) => {
-                    await processWaayuPayOutFn(item)
+                    trxIdsToAvoid.push(item?.trxId)
+                    await processWaayuPayOutFnSecond(item)
                 });
             } else {
                 console.log("No Pending Found In Range !")
@@ -57,7 +62,38 @@ function scheduleWayuPayOutCheck() {
     });
 }
 
-async function processWaayuPayOutFn(item) {
+let trxIdsToAvoidMindMatrix = []
+function scheduleWayuPayOutCheckMindMatrix() {
+    cron.schedule('*/2 * * * *', async () => {
+        const release = await transactionMutexMindMatrix.acquire();
+        const threeHoursAgo = new Date();
+        threeHoursAgo.setHours(threeHoursAgo.getHours() - 2)
+        let GetData = await payOutModelGenerate.find({
+            isSuccess: "Pending",
+            pannelUse: "waayupayPayOutApiMindMatrix",
+            createdAt: { $lt: threeHoursAgo },
+            trxId: { $nin: trxIdsToAvoidMindMatrix }
+        })
+            .sort({ createdAt: -1 }).limit(10)
+        try {
+            if (GetData?.length !== 0) {
+                GetData.forEach(async (item, index) => {
+                    trxIdsToAvoidMindMatrix.push(item?.trxId)
+                    // console.log(item)
+                    await processWaayuPayOutFnMindMatrix(item, index)
+                });
+            } else {
+                console.log("No Pending Found In Range !")
+            }
+        } catch (error) {
+            console.error('Error during payout check:', error.message);
+        } finally {
+            release()
+        }
+    });
+}
+
+async function processWaayuPayOutFnSecond(item) {
     const uatUrl = "https://api.waayupay.com/api/api/api-module/payout/status-check";
     const postAdd = {
         clientId: process.env.WAAYU_CLIENT_ID_TWO,
@@ -143,15 +179,13 @@ async function processWaayuPayOutFn(item) {
             await session.commitTransaction();
             // console.log('Transaction committed successfully');
 
-            // console.log(item?.trxId)
-            await session.commitTransaction();
             // console.log("trxId updated==>", item?.trxId);
 
             return true;
         }
         else {
             console.log(item?.trxId, "not success or failed")
-            trxIdsToAvoid.push(item?.trxId)
+            // trxIdsToAvoid.push(item?.trxId)
             await session.abortTransaction();
             return true;
         }
@@ -165,21 +199,130 @@ async function processWaayuPayOutFn(item) {
         release()
     }
 }
+
+async function processWaayuPayOutFnMindMatrix(item, indexNumber) {
+    const uatUrl = "https://api.waayupay.com/api/api/api-module/payout/status-check";
+    const postAdd = {
+        clientId: process.env.WAAYU_CLIENT_ID_MINDMATRIX,
+        secretKey: process.env.WAAYU_SECRET_KEY_MINDMATRIX,
+        clientOrderId: item?.trxId,
+    };
+    const header = {
+        headers: {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        },
+    };
+
+    const { data } = await axios.post(uatUrl, postAdd, header);
+    const session = await userDB.startSession({ readPreference: 'primary', readConcern: { level: "majority" }, writeConcern: { w: "majority" } });
+    const release = await transactionMutex.acquire();
+    try {
+        session.startTransaction();
+        const opts = { session };
+        if (data?.status === 1) {
+            // Final update and commit in transaction
+            let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(item?._id, { isSuccess: "Success" }, { session, new: true });
+            console.log(payoutModelData?.trxId, "with success, Index", indexNumber)
+            let finalEwalletDeducted = payoutModelData?.afterChargeAmount
+
+            let PayoutStoreData = {
+                memberId: item?.memberId,
+                amount: item?.amount,
+                chargeAmount: item?.gatwayCharge || item?.afterChargeAmount - item?.amount,
+                finalAmount: finalEwalletDeducted,
+                bankRRN: data?.utr,
+                trxId: data?.clientOrderId,
+                optxId: data?.orderId,
+                isSuccess: "Success",
+            }
+
+            let v = await payOutModel.create([PayoutStoreData], opts)
+            await session.commitTransaction();
+
+            // callback send 
+            let callBackBody = {
+                optxid: data?.orderId,
+                status: "SUCCESS",
+                txnid: data?.clientOrderId,
+                amount: item?.amount,
+                rrn: data?.utr,
+            }
+            customCallBackPayoutUser(item?.memberId, callBackBody)
+
+            return true;
+        }
+        else if (data?.status === 4 || data?.status === 0 || data?.status == null) {
+            // trx is falied and update the status
+            let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(item?._id, { isSuccess: "Failed" }, { session, new: true });
+            console.log(payoutModelData?.trxId, "with falied, Index", indexNumber)
+            let finalEwalletDeducted = payoutModelData?.afterChargeAmount
+
+            // update ewallets
+            // update wallet 
+            let userWallet = await userDB.findByIdAndUpdate(item?.memberId, { $inc: { EwalletBalance: + finalEwalletDeducted } }, {
+                returnDocument: 'after',
+                session
+            })
+
+            let afterAmount = userWallet?.EwalletBalance
+            let beforeAmount = userWallet?.EwalletBalance - finalEwalletDeducted;
+
+
+            // ewallet store 
+            let walletModelDataStore = {
+                memberId: item?.memberId,
+                transactionType: "Cr.",
+                transactionAmount: item?.amount,
+                beforeAmount: beforeAmount,
+                chargeAmount: item?.gatwayCharge,
+                afterAmount: afterAmount,
+                description: `Successfully Cr. amount: ${Number(finalEwalletDeducted)} with transaction Id: ${item?.trxId}`,
+                transactionStatus: "Success",
+            }
+
+            await walletModel.create([walletModelDataStore], opts)
+            // Commit the transaction
+            await session.commitTransaction();
+            // console.log('Transaction committed successfully');
+
+            // console.log("trxId updated==>", item?.trxId);
+
+            return true;
+        }
+        else {
+            console.log(item?.trxId, "not success or failed ,Index", indexNumber)
+            // trxIdsToAvoidMindMatrix.push(item?.trxId)
+            await session.abortTransaction();
+            return true;
+        }
+
+    } catch (error) {
+        console.log("inside the error", error)
+        await session.abortTransaction();
+        return false
+    } finally {
+        session.endSession();
+        release()
+    }
+}
+
 let tempTrxIds = []
 function scheduleFlipzik() {
-    cron.schedule('*/10 * * * * *', async () => {
+    cron.schedule('*/50 * * * * *', async () => {
         const release = await transactionMutex.acquire();
-        let tenDaysAgo = new Date();
-        tenDaysAgo.setDate(tenDaysAgo.getDate() - 7);
+        // let tenDaysAgo = new Date();
+        // tenDaysAgo.setDate(tenDaysAgo.getDate() - 7);
 
         let GetData = await payOutModelGenerate.find({
             isSuccess: "Pending",
             trxId: { $nin: tempTrxIds },
-            createdAt: { $gte: tenDaysAgo }
+            pannelUse: { $in: ["flipzikPayoutApi", "frescopayPayoutApi"] }
         })
-            .sort({ createdAt: -1 }).limit(50)
+            .sort({ createdAt: -1 }).limit(10)
         try {
             for (const item of GetData) {
+                // console.log(item)
                 await processFlipzikPayout(item)
             }
             // trxIds.forEach(async (item) => {
@@ -210,7 +353,7 @@ async function processFlipzikPayout(item) {
         const opts = { session };
 
         console.log(data)
-        if (data.status === "Success" && data.master_status === "Success") {
+        if (data?.status?.toLowerCase() === "success" && data?.master_status?.toLowerCase() === "success") {
             // Final update and commit in transaction
             let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(item?._id, { isSuccess: "Success" }, { session, new: true });
             console.log(payoutModelData?.trxId, "with success")
@@ -244,7 +387,7 @@ async function processFlipzikPayout(item) {
 
             return true;
         }
-        else if (data.status === "Failed" || data.master_status === "Failed") {
+        else if (data?.status?.toLowerCase() === "failed" || data?.master_status?.toLowerCase() === "failed") {
             // trx is falied and update the status
             let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(item?._id, { isSuccess: "Failed" }, { session, new: true });
             console.log(payoutModelData?.trxId, "with falied")
@@ -284,47 +427,47 @@ async function processFlipzikPayout(item) {
 
             return true;
         }
-        // else if(typeof data == "string") {
-        //     // trx is falied and update the status
+        else if (typeof data == "string") {
+            // trx is falied and update the status
 
-        //     let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(item?._id, { isSuccess: "Failed" }, { session, new: true });
-        //     console.log(payoutModelData?.trxId, "with pending")
-        //     let finalEwalletDeducted = payoutModelData?.afterChargeAmount
+            let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(item?._id, { isSuccess: "Failed" }, { session, new: true });
+            console.log(payoutModelData?.trxId, "with failed on not found")
+            let finalEwalletDeducted = payoutModelData?.afterChargeAmount
 
-        //     // update ewallets
-        //     // update wallet 
-        //     let userWallet = await userDB.findByIdAndUpdate(item?.memberId, { $inc: { EwalletBalance: + finalEwalletDeducted } }, {
-        //         returnDocument: 'after',
-        //         session
-        //     })
+            // update ewallets
+            // update wallet 
+            let userWallet = await userDB.findByIdAndUpdate(item?.memberId, { $inc: { EwalletBalance: + finalEwalletDeducted } }, {
+                returnDocument: 'after',
+                session
+            })
 
-        //     let afterAmount = userWallet?.EwalletBalance
-        //     let beforeAmount = userWallet?.EwalletBalance - finalEwalletDeducted;
+            let afterAmount = userWallet?.EwalletBalance
+            let beforeAmount = userWallet?.EwalletBalance - finalEwalletDeducted;
 
 
-        //     // ewallet store 
-        //     let walletModelDataStore = {
-        //         memberId: item?.memberId,
-        //         transactionType: "Cr.",
-        //         transactionAmount: item?.amount,
-        //         beforeAmount: beforeAmount,
-        //         chargeAmount: item?.gatwayCharge,
-        //         afterAmount: afterAmount,
-        //         description: `Successfully Cr. amount: ${Number(finalEwalletDeducted)} with transaction Id: ${item?.trxId}`,
-        //         transactionStatus: "Success",
-        //     }
+            // ewallet store 
+            let walletModelDataStore = {
+                memberId: item?.memberId,
+                transactionType: "Cr.",
+                transactionAmount: item?.amount,
+                beforeAmount: beforeAmount,
+                chargeAmount: item?.gatwayCharge,
+                afterAmount: afterAmount,
+                description: `Successfully Cr. amount: ${Number(finalEwalletDeducted)} with transaction Id: ${item?.trxId}`,
+                transactionStatus: "Success",
+            }
 
-        //     await walletModel.create([walletModelDataStore], opts)
-        //     // Commit the transaction
-        //     await session.commitTransaction();
-        //     // console.log('Transaction committed successfully');
+            await walletModel.create([walletModelDataStore], opts)
+            // Commit the transaction
+            await session.commitTransaction();
+            // console.log('Transaction committed successfully');
 
-        //     console.log(item?.trxId)
-        //     await session.commitTransaction();
-        //     console.log("trxId updated==>", item?.trxId);
+            console.log(item?.trxId)
+            await session.commitTransaction();
+            console.log("trxId updated==>", item?.trxId);
 
-        //     return true;
-        // } 
+            return true;
+        }
         // if (data.master_status === "Pending") {
         //     let payoutModelData = await payOutModelGenerate.findOneAndUpdate(
         //         { trxId: item?.trxId, isSuccess: "Failed" },
@@ -1304,9 +1447,166 @@ async function FailedTOsuccessHelp(item) {
     }
 }
 
+function EwalletManuplation() {
+    let amount = 0;
+    let charAmount = 0;
+    let TotalAmount = 0;
+    // jsonFile.forEach(async (item, index) => {
+
+    //     // if (index > 2) {
+    //     //     return false;
+    //     // }
+    //     // console.log(item)
+    //     let trxType = "Dr."
+    //     if (item?.memberId === "67600d55714301611294469e") {
+    //         amount += item?.transactionAmount;
+    //         charAmount += item?.chargeAmount;
+    //         TotalAmount += item?.Total
+    // await EwalletManuplationFunctionGen(item, trxType)
+    //     }
+    // })
+    console.log("total amount", amount)
+    console.log("total chargeamount", charAmount)
+    console.log("total with char amount", TotalAmount)
+}
+
+// async function EwalletManuplationFunctionGen(item, transactionType) {
+//     if (transactionType === "Dr.") {
+//         console.log("It's Dr. !!")
+//         // start debit
+//         const session = await userDB.startSession({ readPreference: 'primary', readConcern: { level: "majority" }, writeConcern: { w: "majority" } });
+//         const release = await eWalletMutexQue.acquire();
+//         try {
+//             session.startTransaction();
+//             const opts = { session };
+
+//             let finalEwalletDeducted = item?.Total
+
+//             // update ewallets
+//             // update wallet 
+//             let userWallet = await userDB.findByIdAndUpdate(item?.memberId, { $inc: { EwalletBalance: - finalEwalletDeducted } }, {
+//                 returnDocument: 'after',
+//                 session
+//             })
+
+//             let afterAmount = userWallet?.EwalletBalance
+//             let beforeAmount = userWallet?.EwalletBalance + finalEwalletDeducted;
+
+
+//             // ewallet store 
+//             let walletModelDataStore = {
+//                 memberId: item?.memberId,
+//                 transactionType: "Dr.",
+//                 transactionAmount: item?.transactionAmount,
+//                 beforeAmount: beforeAmount,
+//                 chargeAmount: item?.chargeAmount,
+//                 afterAmount: afterAmount,
+//                 description: `Successfully Dr. amount: ${Number(finalEwalletDeducted)} with transaction Id: ${item?.TXNID}`,
+//                 transactionStatus: "Success",
+//             }
+
+//             await walletModel.create([walletModelDataStore], opts)
+//             // Commit the transaction
+//             await session.commitTransaction();
+//             console.log("Success Dr. trx :", item?.TXNID)
+//             return true;
+
+//         } catch (error) {
+//             console.log("inside the error", error)
+//             await session.abortTransaction();
+//             return false
+//         } finally {
+//             session.endSession();
+//             release()
+//         }
+//         // end debit
+//     } else if (transactionType === "Cr.") {
+//         console.log("It's Cr. !!")
+//         // start Credit
+//         const session = await userDB.startSession({ readPreference: 'primary', readConcern: { level: "majority" }, writeConcern: { w: "majority" } });
+//         const release = await eWalletMutexQue.acquire();
+//         try {
+//             session.startTransaction();
+//             const opts = { session };
+
+//             let finalEwalletDeducted = item?.Total
+
+//             // update ewallets
+//             // update wallet 
+//             let userWallet = await userDB.findByIdAndUpdate(item?.memberId, { $inc: { EwalletBalance: + finalEwalletDeducted } }, {
+//                 returnDocument: 'after',
+//                 session
+//             })
+
+//             let afterAmount = userWallet?.EwalletBalance
+//             let beforeAmount = userWallet?.EwalletBalance - finalEwalletDeducted;
+
+
+//             // ewallet store 
+//             let walletModelDataStore = {
+//                 memberId: item?.memberId,
+//                 transactionType: "Cr.",
+//                 transactionAmount: item?.transactionAmount,
+//                 beforeAmount: beforeAmount,
+//                 chargeAmount: item?.chargeAmount,
+//                 afterAmount: afterAmount,
+//                 description: `Successfully Cr. amount: ${Number(finalEwalletDeducted)} with transaction Id: ${item?.TXNID}`,
+//                 transactionStatus: "Success",
+//             }
+
+//             await walletModel.create([walletModelDataStore], opts)
+//             // Commit the transaction
+//             await session.commitTransaction();
+//             console.log("Success Cr. trx :", item?.TXNID)
+//             return true;
+
+//         } catch (error) {
+//             console.log("inside the error", error)
+//             await session.abortTransaction();
+//             return false
+//         } finally {
+//             session.endSession();
+//             release()
+//         }
+//         // end Credit
+//     } else {
+//         console.log("Not Cr. and Dr. !!")
+//         return false
+//     }
+// }
+
+async function payOutDuplicateEntryRemove() {
+    // remove duplicate entry
+    let duplicate = await payOutModel.aggregate([
+    {
+        $group: {
+            _id: {
+                trxId: "$trxId",
+                bankRRN: "$bankRRN",
+                optxId: "$optxId",
+                amount: "$amount"
+            },
+            count: { $sum: 1 },
+            docs: { $push: "$_id" }
+        }
+    },
+    {
+        $match: { count: { $gt: 1 } }
+    }
+    ])
+
+    duplicate.forEach(async (doc) => {
+        doc.docs.shift();  //keep one
+        console.log(doc.docs)
+        await payOutModel.deleteMany({ _id: { $in: doc.docs } });
+    });
+    return true
+}
+
 export default function scheduleTask() {
     // FailedToSuccessPayout()
     // scheduleWayuPayOutCheck()
+    // scheduleWayuPayOutCheckMindMatrix()
     // logsClearFunc()
     // migrateData()
     // payinScheduleTask()
@@ -1314,4 +1614,6 @@ export default function scheduleTask() {
     // payoutDeductPackageTaskScript()
     // payinScheduleTask2()
     // scheduleFlipzik()
+    // EwalletManuplation()
+    // payOutDuplicateEntryRemove()
 }

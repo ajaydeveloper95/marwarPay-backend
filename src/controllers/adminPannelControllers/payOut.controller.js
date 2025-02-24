@@ -949,67 +949,67 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                         }
                         return new ApiResponse(200, userREspSend)
                     }
-                    // else if (status == 0) {
-                    //     const release = await genPayoutMutex.acquire();
-                    //     // db locking with added amount 
-                    //     const walletAddsession = await userDB.startSession();
-                    //     const transactionOptions = {
-                    //         readConcern: { level: 'linearizable' },
-                    //         writeConcern: { w: 'majority' },
-                    //         readPreference: { mode: 'primary' },
-                    //         maxTimeMS: 1500
-                    //     };
-                    //     // wallet added and store ewallet trx
-                    //     try {
-                    //         walletAddsession.startTransaction(transactionOptions);
-                    //         const opts = { walletAddsession };
+                    else if (status == 0 || statusCode == 0) {
+                        const release = await genPayoutMutex.acquire();
+                        // db locking with added amount 
+                        const walletAddsession = await userDB.startSession();
+                        const transactionOptions = {
+                            readConcern: { level: 'linearizable' },
+                            writeConcern: { w: 'majority' },
+                            readPreference: { mode: 'primary' },
+                            maxTimeMS: 1500
+                        };
+                        // wallet added and store ewallet trx
+                        try {
+                            walletAddsession.startTransaction(transactionOptions);
+                            const opts = { walletAddsession };
 
-                    //         // Perform the update within the transaction
-                    //         // update wallet 
-                    //         let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct } }, {
-                    //             returnDocument: 'after',
-                    //             walletAddsession
-                    //         })
+                            // Perform the update within the transaction
+                            // update wallet 
+                            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct } }, {
+                                returnDocument: 'after',
+                                walletAddsession
+                            })
 
-                    //         let afterAmount = userWallet?.EwalletBalance
-                    //         let beforeAmount = userWallet?.EwalletBalance - finalAmountDeduct;
+                            let afterAmount = userWallet?.EwalletBalance
+                            let beforeAmount = userWallet?.EwalletBalance - finalAmountDeduct;
 
-                    //         // ewallet store 
-                    //         let walletModelDataStore = {
-                    //             memberId: user?._id,
-                    //             transactionType: "Cr.",
-                    //             transactionAmount: amount,
-                    //             beforeAmount: beforeAmount,
-                    //             chargeAmount: chargeAmount,
-                    //             afterAmount: afterAmount,
-                    //             description: `Successfully Cr. amount: ${Number(finalAmountDeduct)} with transaction Id: ${trxId}`,
-                    //             transactionStatus: "Success",
-                    //         }
+                            // ewallet store 
+                            let walletModelDataStore = {
+                                memberId: user?._id,
+                                transactionType: "Cr.",
+                                transactionAmount: amount,
+                                beforeAmount: beforeAmount,
+                                chargeAmount: chargeAmount,
+                                afterAmount: afterAmount,
+                                description: `Successfully Cr. amount: ${Number(finalAmountDeduct)} with transaction Id: ${trxId}`,
+                                transactionStatus: "Success",
+                            }
 
-                    //         await walletModel.create([walletModelDataStore], opts)
-                    //         // Commit the transaction
-                    //         await walletAddsession.commitTransaction();
-                    //         // console.log('Transaction committed successfully');
-                    //     } catch (error) {
-                    //         console.log(error)
-                    //         await walletAddsession.abortTransaction();
-                    //         // console.error('Transaction aborted due to error:', error);
-                    //     }
-                    //     finally {
-                    //         walletAddsession.endSession();
-                    //         release()
-                    //     }
+                            await walletModel.create([walletModelDataStore], opts)
+                            // Commit the transaction
+                            await walletAddsession.commitTransaction();
+                            // console.log('Transaction committed successfully');
+                        } catch (error) {
+                            console.log(error)
+                            await walletAddsession.abortTransaction();
+                            // console.error('Transaction aborted due to error:', error);
+                        }
+                        finally {
+                            walletAddsession.endSession();
+                            release()
+                        }
 
-                    //     payOutModelGen.isSuccess = "Failed"
-                    //     await await payOutModelGen.save()
-                    //     let userREspSend2 = {
-                    //         statusCode: statusCode || 0,
-                    //         status: status || 0,
-                    //         trxId: trxId || 0,
-                    //         opt_msg: message || "null"
-                    //     }
-                    //     return { message: "Failed", data: userREspSend2 }
-                    // } 
+                        payOutModelGen.isSuccess = "Failed"
+                        await await payOutModelGen.save()
+                        let userREspSend2 = {
+                            statusCode: statusCode || 0,
+                            status: status || 0,
+                            trxId: trxId || 0,
+                            opt_msg: message || "null"
+                        }
+                        return { message: "Failed", data: userREspSend2 }
+                    }
                     else {
                         // let callBackBody = {
                         //     optxid: orderId || "",
@@ -1080,67 +1080,67 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                         }
                         return new ApiResponse(200, userREspSend)
                     }
-                    // else if (status == 0) {
-                    //     const release = await genPayoutMutex.acquire();
-                    //     // db locking with added amount 
-                    //     const walletAddsession = await userDB.startSession();
-                    //     const transactionOptions = {
-                    //         readConcern: { level: 'linearizable' },
-                    //         writeConcern: { w: 'majority' },
-                    //         readPreference: { mode: 'primary' },
-                    //         maxTimeMS: 1500
-                    //     };
-                    //     // wallet added and store ewallet trx
-                    //     try {
-                    //         walletAddsession.startTransaction(transactionOptions);
-                    //         const opts = { walletAddsession };
+                    else if (status == 0 || statusCode == 0) {
+                        const release = await genPayoutMutex.acquire();
+                        // db locking with added amount 
+                        const walletAddsession = await userDB.startSession();
+                        const transactionOptions = {
+                            readConcern: { level: 'linearizable' },
+                            writeConcern: { w: 'majority' },
+                            readPreference: { mode: 'primary' },
+                            maxTimeMS: 1500
+                        };
+                        // wallet added and store ewallet trx
+                        try {
+                            walletAddsession.startTransaction(transactionOptions);
+                            const opts = { walletAddsession };
 
-                    //         // Perform the update within the transaction
-                    //         // update wallet 
-                    //         let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct } }, {
-                    //             returnDocument: 'after',
-                    //             walletAddsession
-                    //         })
+                            // Perform the update within the transaction
+                            // update wallet 
+                            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct } }, {
+                                returnDocument: 'after',
+                                walletAddsession
+                            })
 
-                    //         let afterAmount = userWallet?.EwalletBalance
-                    //         let beforeAmount = userWallet?.EwalletBalance - finalAmountDeduct;
+                            let afterAmount = userWallet?.EwalletBalance
+                            let beforeAmount = userWallet?.EwalletBalance - finalAmountDeduct;
 
-                    //         // ewallet store 
-                    //         let walletModelDataStore = {
-                    //             memberId: user?._id,
-                    //             transactionType: "Cr.",
-                    //             transactionAmount: amount,
-                    //             beforeAmount: beforeAmount,
-                    //             chargeAmount: chargeAmount,
-                    //             afterAmount: afterAmount,
-                    //             description: `Successfully Cr. amount: ${Number(finalAmountDeduct)} with transaction Id: ${trxId}`,
-                    //             transactionStatus: "Success",
-                    //         }
+                            // ewallet store 
+                            let walletModelDataStore = {
+                                memberId: user?._id,
+                                transactionType: "Cr.",
+                                transactionAmount: amount,
+                                beforeAmount: beforeAmount,
+                                chargeAmount: chargeAmount,
+                                afterAmount: afterAmount,
+                                description: `Successfully Cr. amount: ${Number(finalAmountDeduct)} with transaction Id: ${trxId}`,
+                                transactionStatus: "Success",
+                            }
 
-                    //         await walletModel.create([walletModelDataStore], opts)
-                    //         // Commit the transaction
-                    //         await walletAddsession.commitTransaction();
-                    //         // console.log('Transaction committed successfully');
-                    //     } catch (error) {
-                    //         console.log(error)
-                    //         await walletAddsession.abortTransaction();
-                    //         // console.error('Transaction aborted due to error:', error);
-                    //     }
-                    //     finally {
-                    //         walletAddsession.endSession();
-                    //         release()
-                    //     }
+                            await walletModel.create([walletModelDataStore], opts)
+                            // Commit the transaction
+                            await walletAddsession.commitTransaction();
+                            // console.log('Transaction committed successfully');
+                        } catch (error) {
+                            console.log(error)
+                            await walletAddsession.abortTransaction();
+                            // console.error('Transaction aborted due to error:', error);
+                        }
+                        finally {
+                            walletAddsession.endSession();
+                            release()
+                        }
 
-                    //     payOutModelGen.isSuccess = "Failed"
-                    //     await await payOutModelGen.save()
-                    //     let userREspSend2 = {
-                    //         statusCode: statusCode || 0,
-                    //         status: status || 0,
-                    //         trxId: trxId || 0,
-                    //         opt_msg: message || "null"
-                    //     }
-                    //     return { message: "Failed", data: userREspSend2 }
-                    // } 
+                        payOutModelGen.isSuccess = "Failed"
+                        await await payOutModelGen.save()
+                        let userREspSend2 = {
+                            statusCode: statusCode || 0,
+                            status: status || 0,
+                            trxId: trxId || 0,
+                            opt_msg: message || "null"
+                        }
+                        return { message: "Failed", data: userREspSend2 }
+                    }
                     else {
                         // let callBackBody = {
                         //     optxid: orderId || "",
@@ -2133,14 +2133,14 @@ export const flipzikpayCallback = asyncHandler(async (req, res) => {
             }
             return res.status(200).json(new ApiResponse(200, null, "Successfully !"))
         } else if (dataObject.status.toLowerCase() == "failed" || data?.object?.master_status?.toLowerCase() == "failed") {
-            const session = await mongoose.startSession();  
+            const session = await mongoose.startSession();
 
             try {
-                session.startTransaction();  
+                session.startTransaction();
                 let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(
                     item?._id,
                     { isSuccess: "Failed" },
-                    { new: true, session } 
+                    { new: true, session }
                 );
 
                 console.log(payoutModelData?.trxId, "with failed");
@@ -2151,16 +2151,16 @@ export const flipzikpayCallback = asyncHandler(async (req, res) => {
                 let userWallet = await userDB.findByIdAndUpdate(
                     item?.memberId,
                     { $inc: { EwalletBalance: +finalEwalletDeducted } },
-                    { returnDocument: "after", session }  
+                    { returnDocument: "after", session }
                 );
 
                 if (!userWallet) {
-                    throw new Error("User wallet not found!"); 
+                    throw new Error("User wallet not found!");
                 }
 
                 let afterAmount = userWallet?.EwalletBalance;
                 let beforeAmount = userWallet?.EwalletBalance - finalEwalletDeducted;
- 
+
                 let walletModelDataStore = {
                     memberId: item?.memberId,
                     transactionType: "Cr.",
@@ -2181,7 +2181,7 @@ export const flipzikpayCallback = asyncHandler(async (req, res) => {
 
                 return res.status(200).json({ message: "Failed", data: "Transaction processed successfully!" });
             } catch (error) {
-                await session.abortTransaction();  
+                await session.abortTransaction();
                 session.endSession();
                 console.error("Transaction failed:", error);
                 return res.status(200).json({ message: "Error", error: error.message });
