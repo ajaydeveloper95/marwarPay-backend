@@ -1449,7 +1449,8 @@ async function FailedTOsuccessHelp(item) {
 
 function EwalletManuplation() {
     let amount = 0;
-    let withchar = 0;
+    let charAmount = 0;
+    let TotalAmount = 0;
     // jsonFile.forEach(async (item, index) => {
 
     //     // if (index > 2) {
@@ -1459,12 +1460,14 @@ function EwalletManuplation() {
     //     let trxType = "Dr."
     //     if (item?.memberId === "67600d55714301611294469e") {
     //         amount += item?.transactionAmount;
-    //         withchar += item?.Total
-    //         await EwalletManuplationFunctionGen(item, trxType)
+    //         charAmount += item?.chargeAmount;
+    //         TotalAmount += item?.Total
+    // await EwalletManuplationFunctionGen(item, trxType)
     //     }
     // })
     console.log("total amount", amount)
-    console.log("total with char amount", withchar)
+    console.log("total chargeamount", charAmount)
+    console.log("total with char amount", TotalAmount)
 }
 
 // async function EwalletManuplationFunctionGen(item, transactionType) {
