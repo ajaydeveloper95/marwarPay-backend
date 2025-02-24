@@ -153,7 +153,7 @@ async function processWaayuPayOutFnSecond(item) {
 
             // update ewallets
             // update wallet 
-            let userWallet = await userDB.findByIdAndUpdate(item?.memberId, { $inc: { EwalletBalance: + finalEwalletDeducted } }, {
+            let userWallet = await userDB.findByIdAndUpdate(item?.memberId, { $inc: { EwalletBalance: + finalEwalletDeducted, EwalletFundLock: + finalAmountDeduct } }, {
                 returnDocument: 'after',
                 session
             })
@@ -260,7 +260,7 @@ async function processWaayuPayOutFnMindMatrix(item, indexNumber) {
 
             // update ewallets
             // update wallet 
-            let userWallet = await userDB.findByIdAndUpdate(item?.memberId, { $inc: { EwalletBalance: + finalEwalletDeducted } }, {
+            let userWallet = await userDB.findByIdAndUpdate(item?.memberId, { $inc: { EwalletBalance: + finalEwalletDeducted, EwalletFundLock: + finalAmountDeduct } }, {
                 returnDocument: 'after',
                 session
             })
@@ -1578,21 +1578,21 @@ function EwalletManuplation() {
 async function payOutDuplicateEntryRemove() {
     // remove duplicate entry
     let duplicate = await payOutModel.aggregate([
-    {
-        $group: {
-            _id: {
-                trxId: "$trxId",
-                bankRRN: "$bankRRN",
-                optxId: "$optxId",
-                amount: "$amount"
-            },
-            count: { $sum: 1 },
-            docs: { $push: "$_id" }
+        {
+            $group: {
+                _id: {
+                    trxId: "$trxId",
+                    bankRRN: "$bankRRN",
+                    optxId: "$optxId",
+                    amount: "$amount"
+                },
+                count: { $sum: 1 },
+                docs: { $push: "$_id" }
+            }
+        },
+        {
+            $match: { count: { $gt: 1 } }
         }
-    },
-    {
-        $match: { count: { $gt: 1 } }
-    }
     ])
 
     duplicate.forEach(async (doc) => {

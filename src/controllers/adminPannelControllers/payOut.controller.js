@@ -426,16 +426,16 @@ export const generatePayOut = asyncHandler(async (req, res) => {
             { $unwind: "$package" },
             { $lookup: { from: "payoutpackages", localField: "package.packagePayOutCharge", foreignField: "_id", as: "packageCharge" } },
             { $unwind: "$packageCharge" },
-            { $project: { "userName": 1, "memberId": 1, "EwalletBalance": 1, "minWalletBalance": 1, "payOutApi": 1, "packageCharge": 1 } }
+            { $project: { "userName": 1, "memberId": 1, "EwalletBalance": 1, "EwalletFundLock": 1, "minWalletBalance": 1, "payOutApi": 1, "packageCharge": 1 } }
         ]);
 
         if (!user) {
             return res.status(401).json({ message: "Failed", data: "Invalid Credentials or User Inactive!" });
         }
 
-        const { payOutApi, packageCharge, EwalletBalance, minWalletBalance } = user;
+        const { payOutApi, packageCharge, EwalletBalance, minWalletBalance, EwalletFundLock } = user;
 
-        if (payOutApi.apiName === "ServerMaintenance") {
+        if (payOutApi?.apiName === "ServerMaintenance") {
             return res.status(400).json({ message: "Failed", data: { status_msg: "Server Under Maintenance!", status: 400, trxID: trxId } });
         }
 
@@ -450,6 +450,10 @@ export const generatePayOut = asyncHandler(async (req, res) => {
 
         if (finalAmountDeduct > EwalletBalance || finalAmountDeduct > usableBalance) {
             return res.status(400).json({ message: "Failed", data: `Insufficient funds. Usable: ${usableBalance}` });
+        }
+
+        if (EwalletFundLock < finalAmountDeduct) {
+            return res.status(400).json({ message: "Failed", data: `Total Limit Consume ! Available limit : ${EwalletFundLock}` })
         }
 
         const payOutModelGen = await payOutModelGenerate.create({
@@ -472,19 +476,13 @@ export const generatePayOut = asyncHandler(async (req, res) => {
             const opts = { walletDucdsession };
 
             // update wallet 
-            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: - finalAmountDeduct } }, {
+            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: - finalAmountDeduct, EwalletFundLock: - finalAmountDeduct } }, {
                 returnDocument: 'after',
                 walletDucdsession
             })
 
-            // Perform the update within the transaction
-            // let userWallet = await userDB.findById(user?._id, "_id EwalletBalance", opts)
             let afterAmount = userWallet?.EwalletBalance
             let beforeAmount = userWallet?.EwalletBalance + finalAmountDeduct;
-
-            // userWallet.EwalletBalance -= finalAmountDeduct;
-            // await userWallet.save(opts)
-
 
             // ewallet store 
             let walletModelDataStore = {
@@ -582,7 +580,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                                 const opts = { walletAddsession };
 
                                 // update wallet 
-                                let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct } }, {
+                                let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct , EwalletFundLock: + finalAmountDeduct } }, {
                                     returnDocument: 'after',
                                     walletAddsession
                                 })
@@ -853,7 +851,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             const opts = { walletAddsession };
 
                             // update wallet 
-                            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct } }, {
+                            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct, EwalletFundLock: + finalAmountDeduct } }, {
                                 returnDocument: 'after',
                                 walletAddsession
                             })
@@ -966,7 +964,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
 
                             // Perform the update within the transaction
                             // update wallet 
-                            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct } }, {
+                            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct , EwalletFundLock: + finalAmountDeduct } }, {
                                 returnDocument: 'after',
                                 walletAddsession
                             })
@@ -1097,7 +1095,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
 
                             // Perform the update within the transaction
                             // update wallet 
-                            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct } }, {
+                            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct , EwalletFundLock: + finalAmountDeduct } }, {
                                 returnDocument: 'after',
                                 walletAddsession
                             })
@@ -1235,7 +1233,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             const opts = { walletAddsession };
 
                             // update wallet 
-                            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct } }, {
+                            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct , EwalletFundLock: + finalAmountDeduct } }, {
                                 returnDocument: 'after',
                                 walletAddsession
                             })
@@ -1346,7 +1344,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             const opts = { walletAddsession };
 
                             // update wallet 
-                            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct } }, {
+                            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct , EwalletFundLock: + finalAmountDeduct } }, {
                                 returnDocument: 'after',
                                 walletAddsession
                             })
@@ -1445,7 +1443,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             const opts = { walletAddsession };
 
                             // update wallet 
-                            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct } }, {
+                            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct , EwalletFundLock: + finalAmountDeduct } }, {
                                 returnDocument: 'after',
                                 walletAddsession
                             })
