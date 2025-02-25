@@ -580,7 +580,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                                 const opts = { walletAddsession };
 
                                 // update wallet 
-                                let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct , EwalletFundLock: + finalAmountDeduct } }, {
+                                let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct, EwalletFundLock: + finalAmountDeduct } }, {
                                     returnDocument: 'after',
                                     walletAddsession
                                 })
@@ -964,7 +964,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
 
                             // Perform the update within the transaction
                             // update wallet 
-                            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct , EwalletFundLock: + finalAmountDeduct } }, {
+                            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct, EwalletFundLock: + finalAmountDeduct } }, {
                                 returnDocument: 'after',
                                 walletAddsession
                             })
@@ -1095,7 +1095,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
 
                             // Perform the update within the transaction
                             // update wallet 
-                            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct , EwalletFundLock: + finalAmountDeduct } }, {
+                            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct, EwalletFundLock: + finalAmountDeduct } }, {
                                 returnDocument: 'after',
                                 walletAddsession
                             })
@@ -1233,7 +1233,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             const opts = { walletAddsession };
 
                             // update wallet 
-                            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct , EwalletFundLock: + finalAmountDeduct } }, {
+                            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct, EwalletFundLock: + finalAmountDeduct } }, {
                                 returnDocument: 'after',
                                 walletAddsession
                             })
@@ -1344,7 +1344,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             const opts = { walletAddsession };
 
                             // update wallet 
-                            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct , EwalletFundLock: + finalAmountDeduct } }, {
+                            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct, EwalletFundLock: + finalAmountDeduct } }, {
                                 returnDocument: 'after',
                                 walletAddsession
                             })
@@ -1443,7 +1443,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             const opts = { walletAddsession };
 
                             // update wallet 
-                            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct , EwalletFundLock: + finalAmountDeduct } }, {
+                            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct, EwalletFundLock: + finalAmountDeduct } }, {
                                 returnDocument: 'after',
                                 walletAddsession
                             })
@@ -1502,14 +1502,66 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                     "trxId": trxId
                 },
                 res: async (apiResponse) => {
-                    const { statusCode, data, message } = apiResponse;
-                    let userRespSend = {
-                        statusCode: data?.statusCode || 0,
-                        status: data?.status || 0,
-                        trxId: String(data?.trxId) || "0",
-                        opt_msg: data?.opt_msg || "null"
-                    };
-                    return new ApiResponse(200, userRespSend);
+                    const { statusCode, data } = apiResponse;
+                    if (data.status === "Success" && statusCode === 200) {
+                        let userRespSend = {
+                            statusCode: data?.statusCode || 0,
+                            status: data?.status || 0,
+                            trxId: String(data?.trxId) || "0",
+                            opt_msg: data?.opt_msg || "null"
+                        };
+                        return new ApiResponse(200, userRespSend);
+                    }
+                    else {
+                        const release = await genPayoutMutex.acquire();
+                        const walletAddsession = await userDB.startSession();
+                        const transactionOptions = {
+                            readConcern: { level: 'linearizable' },
+                            writeConcern: { w: 'majority' },
+                            readPreference: { mode: 'primary' },
+                            maxTimeMS: 1500
+                        };
+                        try {
+                            walletAddsession.startTransaction(transactionOptions);
+                            const opts = { walletAddsession };
+
+                            // update wallet 
+                            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct, EwalletFundLock: + finalAmountDeduct } }, {
+                                returnDocument: 'after',
+                                walletAddsession
+                            })
+
+                            let afterAmount = userWallet?.EwalletBalance
+                            let beforeAmount = userWallet?.EwalletBalance - finalAmountDeduct;
+
+                            // ewallet store 
+                            let walletModelDataStore = {
+                                memberId: user?._id,
+                                transactionType: "Cr.",
+                                transactionAmount: amount,
+                                beforeAmount: beforeAmount,
+                                chargeAmount: chargeAmount,
+                                afterAmount: afterAmount,
+                                description: `Successfully Cr. amount: ${Number(finalAmountDeduct)} with transaction Id: ${trxId}`,
+                                transactionStatus: "Success",
+                            }
+
+                            await walletModel.create([walletModelDataStore], opts)
+                            // Commit the transaction
+                            await walletAddsession.commitTransaction();
+                            // console.log('Transaction committed successfully');
+                            payOutModelGen.isSuccess = "Failed"
+                            await payOutModelGen.save()
+                        } catch (error) {
+                            console.log("inside error:", error.message)
+                            await walletAddsession.abortTransaction();
+                        }
+                        finally {
+                            walletAddsession.endSession();
+                            release()
+                        }
+                        return { message: "Failed", data: userRespSend }
+                    }
                 }
             }
         };
@@ -2309,9 +2361,8 @@ export const proConceptCallback = asyncHandler(async (req, res) => {
 })
 
 export const frescopayCallback = asyncHandler(async (req, res) => {
-    console.log("callback recived")
     try {
-        const { status, txnid, optxid, amount, rrn } = req?.body
+        const { status, txnid, optxid, amount, rrn } = req.body
 
         let dataObject = { txnid: txnid, optxid: optxid, amount: amount, rrn: rrn, status: status }
 
@@ -2344,7 +2395,7 @@ export const frescopayCallback = asyncHandler(async (req, res) => {
             await payOutModel.create(payoutDataStore)
             // call back send to user
             let callBackBody = {
-                optxid: dataObject?.optxid,
+                optxid: "",
                 status: "SUCCESS",
                 txnid: dataObject?.txnid,
                 amount: dataObject?.amount,
@@ -2409,7 +2460,6 @@ export const frescopayCallback = asyncHandler(async (req, res) => {
             return res.status(200).json({ message: "Failed", data: "Not success or callback response not in valid manner !" })
         }
     } catch (error) {
-        console.log(error)
         return res.status(500).json({ message: "Failed", data: "Internel server Error Accured !" })
     }
 })
