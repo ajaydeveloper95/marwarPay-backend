@@ -82,7 +82,8 @@ export const allPayOutTransactionGeneration = asyncHandler(async (req, res) => {
                     "createdAt": 1,
                     "updatedAt": 1,
                     "userInfo._id": 1,
-                    "userInfo.memberId": 1
+                    "userInfo.memberId": 1,
+                    "gatwayCharge": 1
                 }
             },
 
@@ -104,6 +105,7 @@ export const allPayOutTransactionGeneration = asyncHandler(async (req, res) => {
                 "optxId",
                 "accountNumber",
                 "ifscCode",
+                "gatwayCharge",
                 "amount",
                 "isSuccess",
                 { value: "payoutSuccessData.chargeAmount", label: "Charge Amount" },
