@@ -34,7 +34,7 @@ const loopMutex = new Mutex();
 
 let trxIdsToAvoid = []
 function scheduleWayuPayOutCheckSecond() {
-    cron.schedule('*/10 * * * * *', async () => {
+    cron.schedule('*/3 * * * *', async () => {
         const release = await transactionMutexImpactPeek.acquire();
         const threeHoursAgo = new Date();
         threeHoursAgo.setHours(threeHoursAgo.getHours() - 2)
@@ -44,11 +44,12 @@ function scheduleWayuPayOutCheckSecond() {
             createdAt: { $lt: threeHoursAgo },
             trxId: { $nin: trxIdsToAvoid }
         })
-            .sort({ createdAt: -1 }).limit(1)
+            .sort({ createdAt: 1 }).limit(10)
         try {
             if (GetData?.length !== 0) {
                 GetData.forEach(async (item) => {
                     trxIdsToAvoid.push(item?.trxId)
+                    // console.log(item)
                     await processWaayuPayOutFnSecond(item)
                 });
             } else {
@@ -153,10 +154,11 @@ async function processWaayuPayOutFnSecond(item) {
 
             // update ewallets
             // update wallet 
-            let userWallet = await userDB.findByIdAndUpdate(item?.memberId, { $inc: { EwalletBalance: + finalEwalletDeducted, EwalletFundLock: + finalAmountDeduct } }, {
+            let userWallet = await userDB.findByIdAndUpdate(item?.memberId, { $inc: { EwalletBalance: + finalEwalletDeducted, EwalletFundLock: + finalEwalletDeducted } }, {
                 returnDocument: 'after',
                 session
             })
+
 
             let afterAmount = userWallet?.EwalletBalance
             let beforeAmount = userWallet?.EwalletBalance - finalEwalletDeducted;
@@ -260,7 +262,7 @@ async function processWaayuPayOutFnMindMatrix(item, indexNumber) {
 
             // update ewallets
             // update wallet 
-            let userWallet = await userDB.findByIdAndUpdate(item?.memberId, { $inc: { EwalletBalance: + finalEwalletDeducted, EwalletFundLock: + finalAmountDeduct } }, {
+            let userWallet = await userDB.findByIdAndUpdate(item?.memberId, { $inc: { EwalletBalance: + finalEwalletDeducted, EwalletFundLock: + finalEwalletDeducted } }, {
                 returnDocument: 'after',
                 session
             })
@@ -1605,7 +1607,7 @@ async function payOutDuplicateEntryRemove() {
 
 export default function scheduleTask() {
     // FailedToSuccessPayout()
-    // scheduleWayuPayOutCheck()
+    // scheduleWayuPayOutCheckSecond()
     // scheduleWayuPayOutCheckMindMatrix()
     // logsClearFunc()
     // migrateData()
