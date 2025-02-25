@@ -1502,7 +1502,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                     "trxId": trxId
                 },
                 res: async (apiResponse) => {
-                    const { statusCode, data } = apiResponse;
+                    const { statusCode, data, message } = apiResponse;
                     if (data.status === "Success" && statusCode === 200) {
                         let userRespSend = {
                             statusCode: data?.statusCode || 0,
@@ -1512,7 +1512,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                         };
                         return new ApiResponse(200, userRespSend);
                     }
-                    else {
+                    else if (String(message).toLowerCase() === "failed") {
                         const release = await genPayoutMutex.acquire();
                         const walletAddsession = await userDB.startSession();
                         const transactionOptions = {
@@ -1561,6 +1561,9 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             release()
                         }
                         return { message: "Failed", data: userRespSend }
+                    }
+                    else {
+                        return new ApiResponse(200, userRespSend);
                     }
                 }
             }
