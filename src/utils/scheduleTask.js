@@ -154,7 +154,7 @@ async function processWaayuPayOutFnSecond(item) {
 
             // update ewallets
             // update wallet 
-            let userWallet = await userDB.findByIdAndUpdate(item?.memberId, { $inc: { EwalletBalance: + finalEwalletDeducted, EwalletFundLock: + finalEwalletDeducted } }, {
+            let userWallet = await userDB.findByIdAndUpdate(item?.memberId, { $inc: { EwalletBalance: + finalEwalletDeducted } }, {
                 returnDocument: 'after',
                 session
             })
@@ -262,7 +262,7 @@ async function processWaayuPayOutFnMindMatrix(item, indexNumber) {
 
             // update ewallets
             // update wallet 
-            let userWallet = await userDB.findByIdAndUpdate(item?.memberId, { $inc: { EwalletBalance: + finalEwalletDeducted, EwalletFundLock: + finalEwalletDeducted } }, {
+            let userWallet = await userDB.findByIdAndUpdate(item?.memberId, { $inc: { EwalletBalance: + finalEwalletDeducted } }, {
                 returnDocument: 'after',
                 session
             })
