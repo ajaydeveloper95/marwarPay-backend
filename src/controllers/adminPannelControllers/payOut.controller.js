@@ -1407,6 +1407,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                 data: requestData,
                 res: async (apiResponse) => {
                     const { data, success } = apiResponse;
+                    console.log(apiResponse, "api response")
                     if (!success) {
                         return { message: "Failed", data: `Bank server is down.` }
                     }
@@ -1708,10 +1709,10 @@ export const performPayoutApiCall = async (payOutApi, apiConfig) => {
     if (!apiDetails) return null;
     try {
         const response = await axios.post(apiDetails.url, apiDetails.data, { headers: apiDetails.headers });
-        // console.log(response)
+        console.log(response, "response calling api")
         return response?.data || null;
     } catch (error) {
-        // console.log(error)
+        console.log(error, "error in calling")
         if (error?.response?.data?.fault?.detail?.errorcode === "steps.accesscontrol.IPDeniedAccess") {
             return "Ip validation Failed"
         }
@@ -2395,6 +2396,8 @@ export const flipzikCallbackImpactPeek = asyncHandler(async (req, res) => {
         // }
         const { event_type, data } = req.body
 
+        console.log(req.body)
+
         const dataObject = { txnid: data?.object?.merchant_order_id, optxid: data?.object?.id, amount: data?.object?.amount, rrn: data?.object?.bank_reference_id, status: data.object?.status == "Success" ? "SUCCESS" : data.object?.status }
 
 
@@ -2530,6 +2533,7 @@ export const flipzikCallbackImpactPeek = asyncHandler(async (req, res) => {
 
                 return res.status(200).json({ message: "Failed", data: "Transaction processed successfully!" });
             } catch (error) {
+
                 await session.abortTransaction();
                 session.endSession();
                 console.error("Transaction failed:", error);
