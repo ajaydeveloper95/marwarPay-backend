@@ -299,6 +299,12 @@ function generateSignature(timestamp, body, path, queryString = '', method = 'PO
     return hmac.digest('hex');
 }
 
+function generateSignatureFlipImpact(timestamp, body, path, queryString = '', method = 'POST') {
+    const hmac = crypto.createHmac('sha512', process.env.IMPACTPEEK_FLIPZIK_SECRET_KEY);
+    hmac.update(method + "\n" + path + "\n" + queryString + "\n" + body + "\n" + timestamp + "\n");
+    return hmac.digest('hex');
+}
+
 export const allPayOutPaymentSuccess = asyncHandler(async (req, res) => {
     let { page = 1, limit = 25, keyword = "", startDate, endDate } = req.query;
     page = Number(page) || 1;
@@ -547,6 +553,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
         const timestamp = Date.now().toString();
         const path = "/api/v1/payout/process";
         const signature = generateSignature(timestamp, requestData, path, '', 'POST');
+        const signatureFlipImpact = generateSignatureFlipImpact(timestamp, requestData, path, '', 'POST');
 
         const headerSecrets = await AESUtils.EncryptRequest(HeaderObj, process.env.ENC_KEY)
         const BodyRequestEnc = await AESUtils.EncryptRequest(BodyObj, process.env.ENC_KEY)
@@ -1400,7 +1407,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                 url: payOutApi.apiURL,
                 headers: {
                     "access_key": process.env.IMPACTPEEK_FLIPZIK_ACCESS_KEY,
-                    "signature": signature,
+                    "signature": signatureFlipImpact,
                     "X-Timestamp": timestamp,
                     "Content-Type": "application/json"
                 },
