@@ -1330,8 +1330,8 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                         customCallBackPayoutUser(user?._id, callBackBody)
 
                         let userRespSend = {
-                            statusCode: data?.status || 0,
-                            status: data?.status || 0,
+                            statusCode: data?.status === "Success" ? 1 : 2 || 0,
+                            status: data?.status === "Success" ? 1 : 2 || 0,
                             trxId: data?.merchant_order_id || 0,
                             opt_msg: data?.acquirer_message || "null"
                         }
@@ -1372,6 +1372,8 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             }
 
                             await walletModel.create([walletModelDataStore], opts)
+                            payOutModelGen.isSuccess = "Failed"
+                            await await payOutModelGen.save()
                             // Commit the transaction
                             await walletAddsession.commitTransaction();
                             // console.log('Transaction committed successfully');
@@ -1383,8 +1385,6 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             release()
                         }
 
-                        payOutModelGen.isSuccess = "Failed"
-                        await await payOutModelGen.save()
                         let userRespSend2 = {
                             statusCode: data?.status || 0,
                             status: data?.status || 0,
@@ -1447,8 +1447,8 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                         customCallBackPayoutUser(user?._id, callBackBody)
 
                         let userRespSend = {
-                            statusCode: data?.status || 0,
-                            status: data?.status || 0,
+                            statusCode: data?.status === "Success" ? 1 : 2 || 0,
+                            status: data?.status === "Success" ? 1 : 2 || 0,
                             trxId: data?.merchant_order_id || 0,
                             opt_msg: data?.acquirer_message || "null"
                         }
@@ -1489,6 +1489,8 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             }
 
                             await walletModel.create([walletModelDataStore], opts)
+                            payOutModelGen.isSuccess = "Failed"
+                            await await payOutModelGen.save()
                             // Commit the transaction
                             await walletAddsession.commitTransaction();
                             // console.log('Transaction committed successfully');
@@ -1500,8 +1502,6 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             release()
                         }
 
-                        payOutModelGen.isSuccess = "Failed"
-                        await await payOutModelGen.save()
                         let userRespSend2 = {
                             statusCode: data?.status || 0,
                             status: data?.status || 0,
@@ -2438,25 +2438,6 @@ export const flipzikCallbackImpactPeek = asyncHandler(async (req, res) => {
             // let beforeAmountUser = userWalletInfo.EwalletBalance;
             let finalEwalletDeducted = mainAmount + chargePaymentGatway;
 
-            // let walletModelDataStore = {
-            //     memberId: userWalletInfo._id,
-            //     transactionType: "Dr.",
-            //     transactionAmount: dataObject?.amount,
-            //     beforeAmount: beforeAmountUser,
-            //     chargeAmount: chargePaymentGatway,
-            //     afterAmount: beforeAmountUser - finalEwalletDeducted,
-            //     description: `Successfully Dr. amount: ${finalEwalletDeducted}`,
-            //     transactionStatus: "Success",
-            // }
-
-            // userWalletInfo.EwalletBalance -= finalEwalletDeducted
-            // await userWalletInfo.save();
-            // await userDB.findByIdAndUpdate(userInfo[0]?._id,
-            //     { $inc: { EwalletBalance: -finalEwalletDeducted } }
-            // );
-
-            // let storeTrx = await walletModel.create(walletModelDataStore)
-
             let payoutDataStore = {
                 memberId: getDocoment?.memberId,
                 amount: mainAmount,
@@ -2497,18 +2478,18 @@ export const flipzikCallbackImpactPeek = asyncHandler(async (req, res) => {
             try {
                 session.startTransaction();
                 let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(
-                    item?._id,
+                    getDocoment?._id,
                     { isSuccess: "Failed" },
                     { new: true, session }
                 );
 
-                console.log(payoutModelData?.trxId, "with failed");
+                // console.log(payoutModelData?.trxId, "with failed");
 
                 let finalEwalletDeducted = payoutModelData?.afterChargeAmount;
 
                 // Update user wallet
                 let userWallet = await userDB.findByIdAndUpdate(
-                    item?.memberId,
+                    payoutModelData?.memberId,
                     { $inc: { EwalletBalance: +finalEwalletDeducted } },
                     { returnDocument: "after", session }
                 );
@@ -2521,13 +2502,13 @@ export const flipzikCallbackImpactPeek = asyncHandler(async (req, res) => {
                 let beforeAmount = userWallet?.EwalletBalance - finalEwalletDeducted;
 
                 let walletModelDataStore = {
-                    memberId: item?.memberId,
+                    memberId: payoutModelData?.memberId,
                     transactionType: "Cr.",
-                    transactionAmount: item?.amount,
+                    transactionAmount: payoutModelData?.amount,
                     beforeAmount: beforeAmount,
-                    chargeAmount: item?.gatwayCharge,
+                    chargeAmount: payoutModelData?.gatwayCharge,
                     afterAmount: afterAmount,
-                    description: `Successfully Cr. amount: ${Number(finalEwalletDeducted)} with transaction Id: ${item?.trxId}`,
+                    description: `Successfully Cr. amount: ${Number(finalEwalletDeducted)} with transaction Id: ${payoutModelData?.trxId}`,
                     transactionStatus: "Success",
                 };
 
