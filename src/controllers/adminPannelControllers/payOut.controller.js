@@ -507,7 +507,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
             await walletDucdsession.commitTransaction();
             // console.log('Transaction committed successfully');
         } catch (error) {
-            console.log(error)
+            // console.log(error)
             await walletDucdsession.abortTransaction();
             // console.error('Transaction aborted due to error:', error);
         }
@@ -883,7 +883,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             await walletAddsession.commitTransaction();
                             // console.log('Transaction committed successfully');
                         } catch (error) {
-                            console.log(error)
+                            // console.log(error)
                             await walletAddsession.abortTransaction();
                             // console.error('Transaction aborted due to error:', error);
                         }
@@ -996,7 +996,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             await walletAddsession.commitTransaction();
                             // console.log('Transaction committed successfully');
                         } catch (error) {
-                            console.log(error)
+                            // console.log(error)
                             await walletAddsession.abortTransaction();
                             // console.error('Transaction aborted due to error:', error);
                         }
@@ -1127,7 +1127,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             await walletAddsession.commitTransaction();
                             // console.log('Transaction committed successfully');
                         } catch (error) {
-                            console.log(error)
+                            // console.log(error)
                             await walletAddsession.abortTransaction();
                             // console.error('Transaction aborted due to error:', error);
                         }
@@ -1414,7 +1414,6 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                 data: requestData,
                 res: async (apiResponse) => {
                     const { data, success } = apiResponse;
-                    console.log(apiResponse, "api response")
                     if (!success) {
                         return { message: "Failed", data: `Bank server is down.` }
                     }
@@ -1716,10 +1715,8 @@ export const performPayoutApiCall = async (payOutApi, apiConfig) => {
     if (!apiDetails) return null;
     try {
         const response = await axios.post(apiDetails.url, apiDetails.data, { headers: apiDetails.headers });
-        console.log(response, "response calling api")
         return response?.data || null;
     } catch (error) {
-        console.log(error, "error in calling")
         if (error?.response?.data?.fault?.detail?.errorcode === "steps.accesscontrol.IPDeniedAccess") {
             return "Ip validation Failed"
         }
@@ -1887,7 +1884,7 @@ export const payoutCallBackResponse = asyncHandler(async (req, res) => {
             return res.status(400).json({ message: "Failed", data: "Trx Id and user not Found !" })
         }
     } catch (error) {
-        console.log(error)
+        // console.log(error)
         return res.status(400).json({ message: "Failed", data: "Internal server error !" })
     }
 });
@@ -2315,18 +2312,16 @@ export const flipzikpayCallback = asyncHandler(async (req, res) => {
             try {
                 session.startTransaction();
                 let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(
-                    item?._id,
+                    getDocoment?.memberId,
                     { isSuccess: "Failed" },
                     { new: true, session }
                 );
-
-                console.log(payoutModelData?.trxId, "with failed");
 
                 let finalEwalletDeducted = payoutModelData?.afterChargeAmount;
 
                 // Update user wallet
                 let userWallet = await userDB.findByIdAndUpdate(
-                    item?.memberId,
+                    payoutModelData?.memberId,
                     { $inc: { EwalletBalance: +finalEwalletDeducted } },
                     { returnDocument: "after", session }
                 );
@@ -2339,13 +2334,13 @@ export const flipzikpayCallback = asyncHandler(async (req, res) => {
                 let beforeAmount = userWallet?.EwalletBalance - finalEwalletDeducted;
 
                 let walletModelDataStore = {
-                    memberId: item?.memberId,
+                    memberId: payoutModelData?.memberId,
                     transactionType: "Cr.",
-                    transactionAmount: item?.amount,
+                    transactionAmount: payoutModelData?.amount,
                     beforeAmount: beforeAmount,
-                    chargeAmount: item?.gatwayCharge,
+                    chargeAmount: payoutModelData?.gatwayCharge,
                     afterAmount: afterAmount,
-                    description: `Successfully Cr. amount: ${Number(finalEwalletDeducted)} with transaction Id: ${item?.trxId}`,
+                    description: `Successfully Cr. amount: ${Number(finalEwalletDeducted)} with transaction Id: ${payoutModelData?.trxId}`,
                     transactionStatus: "Success",
                 };
 
@@ -2402,8 +2397,6 @@ export const flipzikCallbackImpactPeek = asyncHandler(async (req, res) => {
         //     return res.status(401).json({ error: "Invalid signature" });
         // }
         const { event_type, data } = req.body
-
-        console.log(req.body)
 
         const dataObject = { txnid: data?.object?.merchant_order_id, optxid: data?.object?.id, amount: data?.object?.amount, rrn: data?.object?.bank_reference_id, status: data.object?.status == "Success" ? "SUCCESS" : data.object?.status }
 
