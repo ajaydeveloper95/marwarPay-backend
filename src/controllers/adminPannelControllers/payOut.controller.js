@@ -299,6 +299,12 @@ function generateSignature(timestamp, body, path, queryString = '', method = 'PO
     return hmac.digest('hex');
 }
 
+function generateSignatureFlipImpact(timestamp, body, path, queryString = '', method = 'POST') {
+    const hmac = crypto.createHmac('sha512', process.env.IMPACTPEEK_FLIPZIK_SECRET_KEY);
+    hmac.update(method + "\n" + path + "\n" + queryString + "\n" + body + "\n" + timestamp + "\n");
+    return hmac.digest('hex');
+}
+
 export const allPayOutPaymentSuccess = asyncHandler(async (req, res) => {
     let { page = 1, limit = 25, keyword = "", startDate, endDate } = req.query;
     page = Number(page) || 1;
@@ -547,6 +553,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
         const timestamp = Date.now().toString();
         const path = "/api/v1/payout/process";
         const signature = generateSignature(timestamp, requestData, path, '', 'POST');
+        const signatureFlipImpact = generateSignatureFlipImpact(timestamp, requestData, path, '', 'POST');
 
         const headerSecrets = await AESUtils.EncryptRequest(HeaderObj, process.env.ENC_KEY)
         const BodyRequestEnc = await AESUtils.EncryptRequest(BodyObj, process.env.ENC_KEY)
@@ -1323,8 +1330,8 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                         customCallBackPayoutUser(user?._id, callBackBody)
 
                         let userRespSend = {
-                            statusCode: data?.status || 0,
-                            status: data?.status || 0,
+                            statusCode: data?.status === "Success" ? 1 : 2 || 0,
+                            status: data?.status === "Success" ? 1 : 2 || 0,
                             trxId: data?.merchant_order_id || 0,
                             opt_msg: data?.acquirer_message || "null"
                         }
@@ -1365,6 +1372,8 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             }
 
                             await walletModel.create([walletModelDataStore], opts)
+                            payOutModelGen.isSuccess = "Failed"
+                            await await payOutModelGen.save()
                             // Commit the transaction
                             await walletAddsession.commitTransaction();
                             // console.log('Transaction committed successfully');
@@ -1376,19 +1385,17 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             release()
                         }
 
-                        payOutModelGen.isSuccess = "Failed"
-                        await await payOutModelGen.save()
                         let userRespSend2 = {
-                            statusCode: data?.status || 0,
-                            status: data?.status || 0,
+                            statusCode: data?.status === "Failed" ? 0 : 2 || 0,
+                            status: data?.status === "Failed" ? 0 : 2 || 0,
                             trxId: trxId || 0,
                             opt_msg: data?.acquirer_message || "null"
                         }
                         return { message: "Failed", data: userRespSend2 }
                     } else {
                         let userRespSend2 = {
-                            statusCode: data?.status || 0,
-                            status: data?.status || 0,
+                            statusCode: data?.status === "Pending" ? 2 : 0 || 0,
+                            status: data?.status === "Pending" ? 2 : 0 || 0,
                             trxId: trxId || 0,
                             opt_msg: data?.acquirer_message || "null"
                         }
@@ -1400,13 +1407,14 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                 url: payOutApi.apiURL,
                 headers: {
                     "access_key": process.env.IMPACTPEEK_FLIPZIK_ACCESS_KEY,
-                    "signature": signature,
+                    "signature": signatureFlipImpact,
                     "X-Timestamp": timestamp,
                     "Content-Type": "application/json"
                 },
                 data: requestData,
                 res: async (apiResponse) => {
                     const { data, success } = apiResponse;
+                    console.log(apiResponse, "api response")
                     if (!success) {
                         return { message: "Failed", data: `Bank server is down.` }
                     }
@@ -1439,8 +1447,8 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                         customCallBackPayoutUser(user?._id, callBackBody)
 
                         let userRespSend = {
-                            statusCode: data?.status || 0,
-                            status: data?.status || 0,
+                            statusCode: data?.status === "Success" ? 1 : 2 || 0,
+                            status: data?.status === "Success" ? 1 : 2 || 0,
                             trxId: data?.merchant_order_id || 0,
                             opt_msg: data?.acquirer_message || "null"
                         }
@@ -1481,6 +1489,8 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             }
 
                             await walletModel.create([walletModelDataStore], opts)
+                            payOutModelGen.isSuccess = "Failed"
+                            await await payOutModelGen.save()
                             // Commit the transaction
                             await walletAddsession.commitTransaction();
                             // console.log('Transaction committed successfully');
@@ -1492,19 +1502,17 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             release()
                         }
 
-                        payOutModelGen.isSuccess = "Failed"
-                        await await payOutModelGen.save()
                         let userRespSend2 = {
-                            statusCode: data?.status || 0,
-                            status: data?.status || 0,
+                            statusCode: data?.status === "Failed" ? 0 : 2 || 0,
+                            status: data?.status === "Failed" ? 0 : 2 || 0,
                             trxId: trxId || 0,
                             opt_msg: data?.acquirer_message || "null"
                         }
                         return { message: "Failed", data: userRespSend2 }
                     } else {
                         let userRespSend2 = {
-                            statusCode: data?.status || 0,
-                            status: data?.status || 0,
+                            statusCode: data?.status === "Pending" ? 2 : 0 || 0,
+                            status: data?.status === "Pending" ? 2 : 0 || 0,
                             trxId: trxId || 0,
                             opt_msg: data?.acquirer_message || "null"
                         }
@@ -1708,10 +1716,10 @@ export const performPayoutApiCall = async (payOutApi, apiConfig) => {
     if (!apiDetails) return null;
     try {
         const response = await axios.post(apiDetails.url, apiDetails.data, { headers: apiDetails.headers });
-        // console.log(response)
+        console.log(response, "response calling api")
         return response?.data || null;
     } catch (error) {
-        // console.log(error)
+        console.log(error, "error in calling")
         if (error?.response?.data?.fault?.detail?.errorcode === "steps.accesscontrol.IPDeniedAccess") {
             return "Ip validation Failed"
         }
@@ -2395,6 +2403,8 @@ export const flipzikCallbackImpactPeek = asyncHandler(async (req, res) => {
         // }
         const { event_type, data } = req.body
 
+        console.log(req.body)
+
         const dataObject = { txnid: data?.object?.merchant_order_id, optxid: data?.object?.id, amount: data?.object?.amount, rrn: data?.object?.bank_reference_id, status: data.object?.status == "Success" ? "SUCCESS" : data.object?.status }
 
 
@@ -2427,25 +2437,6 @@ export const flipzikCallbackImpactPeek = asyncHandler(async (req, res) => {
             // let userWalletInfo = await userDB.findById(userInfo[0]?._id, "_id EwalletBalance");
             // let beforeAmountUser = userWalletInfo.EwalletBalance;
             let finalEwalletDeducted = mainAmount + chargePaymentGatway;
-
-            // let walletModelDataStore = {
-            //     memberId: userWalletInfo._id,
-            //     transactionType: "Dr.",
-            //     transactionAmount: dataObject?.amount,
-            //     beforeAmount: beforeAmountUser,
-            //     chargeAmount: chargePaymentGatway,
-            //     afterAmount: beforeAmountUser - finalEwalletDeducted,
-            //     description: `Successfully Dr. amount: ${finalEwalletDeducted}`,
-            //     transactionStatus: "Success",
-            // }
-
-            // userWalletInfo.EwalletBalance -= finalEwalletDeducted
-            // await userWalletInfo.save();
-            // await userDB.findByIdAndUpdate(userInfo[0]?._id,
-            //     { $inc: { EwalletBalance: -finalEwalletDeducted } }
-            // );
-
-            // let storeTrx = await walletModel.create(walletModelDataStore)
 
             let payoutDataStore = {
                 memberId: getDocoment?.memberId,
@@ -2487,18 +2478,18 @@ export const flipzikCallbackImpactPeek = asyncHandler(async (req, res) => {
             try {
                 session.startTransaction();
                 let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(
-                    item?._id,
+                    getDocoment?._id,
                     { isSuccess: "Failed" },
                     { new: true, session }
                 );
 
-                console.log(payoutModelData?.trxId, "with failed");
+                // console.log(payoutModelData?.trxId, "with failed");
 
                 let finalEwalletDeducted = payoutModelData?.afterChargeAmount;
 
                 // Update user wallet
                 let userWallet = await userDB.findByIdAndUpdate(
-                    item?.memberId,
+                    payoutModelData?.memberId,
                     { $inc: { EwalletBalance: +finalEwalletDeducted } },
                     { returnDocument: "after", session }
                 );
@@ -2511,13 +2502,13 @@ export const flipzikCallbackImpactPeek = asyncHandler(async (req, res) => {
                 let beforeAmount = userWallet?.EwalletBalance - finalEwalletDeducted;
 
                 let walletModelDataStore = {
-                    memberId: item?.memberId,
+                    memberId: payoutModelData?.memberId,
                     transactionType: "Cr.",
-                    transactionAmount: item?.amount,
+                    transactionAmount: payoutModelData?.amount,
                     beforeAmount: beforeAmount,
-                    chargeAmount: item?.gatwayCharge,
+                    chargeAmount: payoutModelData?.gatwayCharge,
                     afterAmount: afterAmount,
-                    description: `Successfully Cr. amount: ${Number(finalEwalletDeducted)} with transaction Id: ${item?.trxId}`,
+                    description: `Successfully Cr. amount: ${Number(finalEwalletDeducted)} with transaction Id: ${payoutModelData?.trxId}`,
                     transactionStatus: "Success",
                 };
 
@@ -2530,6 +2521,7 @@ export const flipzikCallbackImpactPeek = asyncHandler(async (req, res) => {
 
                 return res.status(200).json({ message: "Failed", data: "Transaction processed successfully!" });
             } catch (error) {
+
                 await session.abortTransaction();
                 session.endSession();
                 console.error("Transaction failed:", error);
