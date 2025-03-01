@@ -1386,16 +1386,16 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                         }
 
                         let userRespSend2 = {
-                            statusCode: data?.status || 0,
-                            status: data?.status || 0,
+                            statusCode: data?.status === "Failed" ? 0 : 2 || 0,
+                            status: data?.status === "Failed" ? 0 : 2 || 0,
                             trxId: trxId || 0,
                             opt_msg: data?.acquirer_message || "null"
                         }
                         return { message: "Failed", data: userRespSend2 }
                     } else {
                         let userRespSend2 = {
-                            statusCode: data?.status || 0,
-                            status: data?.status || 0,
+                            statusCode: data?.status === "Pending" ? 2 : 0 || 0,
+                            status: data?.status === "Pending" ? 2 : 0 || 0,
                             trxId: trxId || 0,
                             opt_msg: data?.acquirer_message || "null"
                         }
@@ -1503,16 +1503,16 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                         }
 
                         let userRespSend2 = {
-                            statusCode: data?.status || 0,
-                            status: data?.status || 0,
+                            statusCode: data?.status === "Failed" ? 0 : 2 || 0,
+                            status: data?.status === "Failed" ? 0 : 2 || 0,
                             trxId: trxId || 0,
                             opt_msg: data?.acquirer_message || "null"
                         }
                         return { message: "Failed", data: userRespSend2 }
                     } else {
                         let userRespSend2 = {
-                            statusCode: data?.status || 0,
-                            status: data?.status || 0,
+                            statusCode: data?.status === "Pending" ? 2 : 0 || 0,
+                            status: data?.status === "Pending" ? 2 : 0 || 0,
                             trxId: trxId || 0,
                             opt_msg: data?.acquirer_message || "null"
                         }
