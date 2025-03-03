@@ -1413,14 +1413,12 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                 },
                 data: requestData,
                 res: async (apiResponse) => {
-                    console.log(apiResponse, "apiresponse")
                     const { data, success } = apiResponse;
                     if (!success) {
                         return { message: "Failed", data: `Bank server is down.` }
                     }
 
                     if (data?.status === "Success" && data?.master_status === "Success") {
-                        console.log(data, "inside success")
                         // If successful, store the payout data
                         let payoutDataStore = {
                             memberId: user?._id,
@@ -1455,7 +1453,6 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                         }
                         return new ApiResponse(200, userRespSend)
                     } else if (data?.master_status === "Failed") {
-                        console.log(data, "inside failed")
                         const release = await genPayoutMutex.acquire();
                         const walletAddsession = await userDB.startSession();
                         const transactionOptions = {
@@ -1512,7 +1509,6 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                         }
                         return { message: "Failed", data: userRespSend2 }
                     } else {
-                        console.log(data, "inside elase")
                         let userRespSend2 = {
                             statusCode: data?.status === "Pending" ? 2 : 0 || 0,
                             status: data?.status === "Pending" ? 2 : 0 || 0,
@@ -1719,10 +1715,8 @@ export const performPayoutApiCall = async (payOutApi, apiConfig) => {
     if (!apiDetails) return null;
     try {
         const response = await axios.post(apiDetails.url, apiDetails.data, { headers: apiDetails.headers });
-        console.log(response?.data, "response data")
         return response?.data || null;
     } catch (error) {
-        console.log(error, "Error")
         if (error?.response?.data?.fault?.detail?.errorcode === "steps.accesscontrol.IPDeniedAccess") {
             return "Ip validation Failed"
         }
@@ -2403,8 +2397,6 @@ export const flipzikCallbackImpactPeek = asyncHandler(async (req, res) => {
         //     return res.status(401).json({ error: "Invalid signature" });
         // }
         const { event_type, data } = req.body
-
-        console.log(req.body, "req.body")
 
         const dataObject = { txnid: data?.object?.merchant_order_id, optxid: data?.object?.id, amount: data?.object?.amount, rrn: data?.object?.bank_reference_id, status: data.object?.status == "Success" ? "SUCCESS" : data.object?.status }
 
