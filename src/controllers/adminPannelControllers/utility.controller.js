@@ -9,6 +9,12 @@ import { ApiResponse } from "../../utils/ApiResponse.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import axios from "axios";
 
+function generateSignatureImpactPeekFlipzik(timestamp, body, path, queryString = '', method = 'POST') {
+    const hmac = crypto.createHmac('sha512', process.env.IMPACTPEEK_FLIPZIK_SECRET_KEY);
+    hmac.update(method + "\n" + path + "\n" + queryString + "\n" + body + "\n" + timestamp + "\n");
+    return hmac.digest('hex');
+}
+
 export const getBalanceFetch = asyncHandler(async (req, res) => {
     let bankingApiURL = "https://api.waayupay.com/api/api/api-module/payout/balance";
     let bankingSec = {
@@ -43,6 +49,29 @@ export const getBalanceFetchImpactPeek = asyncHandler(async (req, res) => {
         let balance = result?.data?.balance
         return res.status(200).json(new ApiResponse(200, balance))
     }).catch((err) => {
+        return res.status(400).json({ message: "Failed", data: "Balance Not Fetch Successfully !" })
+    })
+})
+
+export const getBalanceImpactPeekFlipzik = asyncHandler(async (req, res) => {
+    const timestamp = Date.now().toString();
+    const signature = generateSignatureImpactPeekFlipzik(timestamp, "", `/api/v1/payout/balance/1`, '', 'GET');
+
+    let bankingApiURL = "https://api.flipzik.com/api/v1/payout/balance/1";
+    let optionsHead = {
+        Headers: {
+            "X-Timestamp": timestamp,
+            "access_key": process.env.IMPACTPEEK_FLIPZIK_ACCESS_KEY,
+            "signature": signature
+        }
+    }
+    axios.get(bankingApiURL, optionsHead).then((result) => {
+        console.log(result?.data, "result")
+        let balance = result?.data?.balance
+        console.log(balance, "balalcne")
+        return res.status(200).json(new ApiResponse(200, balance))
+    }).catch((err) => {
+        console.log(err, "error")
         return res.status(400).json({ message: "Failed", data: "Balance Not Fetch Successfully !" })
     })
 })
