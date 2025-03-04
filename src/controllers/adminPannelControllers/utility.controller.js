@@ -57,27 +57,34 @@ export const getBalanceFetchImpactPeek = asyncHandler(async (req, res) => {
 export const getBalanceImpactPeekFlipzik = asyncHandler(async (req, res) => {
     const timestamp = Date.now().toString();
     const signature = generateSignatureImpactPeekFlipzik(timestamp, "", `api/v1/payout/balance/1`, '', 'GET');
-    console.log(signature,"sign")
-    console.log(timestamp,"timestamp")
+    console.log(signature, "sign")
+    console.log(timestamp, "timestamp")
 
     let bankingApiURL = "https://api.flipzik.com/api/v1/payout/balance/1";
-    let optionsHead = {
-        Headers: {
-            "X-Timestamp": timestamp,
-            "access_key": process.env.IMPACTPEEK_FLIPZIK_ACCESS_KEY,
-            "signature": signature,
-            "Content-Type": "application/json"
-        }
-    }
-    axios.get(bankingApiURL, optionsHead).then((result) => {
-        console.log(result?.data, "result")
+
+    const headers = {
+        "X-Timestamp": timestamp,
+        "access_key": process.env.FLIPZIK_ACCESS_KEY,
+        "signature": signature
+    };
+
+    try {
+        const response = await axios.get(bankingApiURL, { headers });
+
+        // axios.get(bankingApiURL, optionsHead).then((result) => {
+        //     console.log(result?.data, "result")
+        //     let balance = result?.data?.balance
+        //     console.log(balance, "balalcne")
+        //     return res.status(200).json(new ApiResponse(200, balance))
+        // }).
+        console.log(response, "data")
         let balance = result?.data?.balance
         console.log(balance, "balalcne")
         return res.status(200).json(new ApiResponse(200, balance))
-    }).catch((err) => {
+    } catch (err) {
         console.log(err, "error")
         return res.status(400).json({ message: "Failed", data: "Balance Not Fetch Successfully !" })
-    })
+    }
 })
 
 export const getUserList = asyncHandler(async (req, res) => {
