@@ -56,14 +56,17 @@ export const getBalanceFetchImpactPeek = asyncHandler(async (req, res) => {
 
 export const getBalanceImpactPeekFlipzik = asyncHandler(async (req, res) => {
     const timestamp = Date.now().toString();
-    const signature = generateSignatureImpactPeekFlipzik(timestamp, "", `/api/v1/payout/balance/1`, '', 'GET');
+    const signature = generateSignatureImpactPeekFlipzik(timestamp, "", `api/v1/payout/balance/1`, '', 'GET');
+    console.log(signature,"sign")
+    console.log(timestamp,"timestamp")
 
     let bankingApiURL = "https://api.flipzik.com/api/v1/payout/balance/1";
     let optionsHead = {
         Headers: {
             "X-Timestamp": timestamp,
             "access_key": process.env.IMPACTPEEK_FLIPZIK_ACCESS_KEY,
-            "signature": signature
+            "signature": signature,
+            "Content-Type": "application/json"
         }
     }
     axios.get(bankingApiURL, optionsHead).then((result) => {
