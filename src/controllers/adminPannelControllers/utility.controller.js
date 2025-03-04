@@ -8,6 +8,7 @@ import apiPayOutModel from "../../models/apiPayOutSwitch.model.js";
 import { ApiResponse } from "../../utils/ApiResponse.js";
 import { asyncHandler } from "../../utils/asyncHandler.js";
 import axios from "axios";
+import crypto from "crypto";
 
 function generateSignatureImpactPeekFlipzik(timestamp, body, path, queryString = '', method = 'POST') {
     const hmac = crypto.createHmac('sha512', process.env.IMPACTPEEK_FLIPZIK_SECRET_KEY);
