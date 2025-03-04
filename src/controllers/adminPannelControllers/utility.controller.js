@@ -55,34 +55,27 @@ export const getBalanceFetchImpactPeek = asyncHandler(async (req, res) => {
 })
 
 export const getBalanceImpactPeekFlipzik = asyncHandler(async (req, res) => {
+    let payout_id = "1"
+
     const timestamp = Date.now().toString();
-    const signature = generateSignatureImpactPeekFlipzik(timestamp, "", `/api/v1/payout/balance/1`, '', 'GET');
-    console.log(signature, "sign")
-    console.log(timestamp, "timestamp")
-
-    let bankingApiURL = "https://api.flipzik.com/api/v1/payout/balance/1";
-
-    const headers = {
-        "X-Timestamp": timestamp,
-        "access_key": process.env.FLIPZIK_ACCESS_KEY,
-        "signature": signature
-    };
-
+    const signature = generateSignatureImpactPeekFlipzik(timestamp, "", `/api/v1/payout/balance/${payout_id}`, '', 'GET');
     try {
-        const response = await axios.get(bankingApiURL, { headers });
+        const url = `https://api.flipzik.com/api/v1/payout/balance/${payout_id}`;
 
-        // axios.get(bankingApiURL, optionsHead).then((result) => {
-        //     console.log(result?.data, "result")
-        //     let balance = result?.data?.balance
-        //     console.log(balance, "balalcne")
-        //     return res.status(200).json(new ApiResponse(200, balance))
-        // }).
-        console.log(response, "data")
-        let balance = result?.data?.balance
-        console.log(balance, "balalcne")
+        const headers = {
+            "X-Timestamp": timestamp,
+            "access_key": process.env.IMPACTPEEK_FLIPZIK_ACCESS_KEY,
+            "signature": signature
+        };
+
+        const response = await axios.get(url, { headers });
+
+        console.log("Transaction Status:", response.data);
+        console.log(response?.data)
         return res.status(200).json(new ApiResponse(200, balance))
-    } catch (err) {
-        console.log(err, "error")
+    } catch (error) {
+        // console.log("error in process flipzik=>", error)
+        console.log(error)
         return res.status(400).json({ message: "Failed", data: "Balance Not Fetch Successfully !" })
     }
 })
