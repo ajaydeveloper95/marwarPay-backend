@@ -65,7 +65,8 @@ export const getBalanceImpactPeekFlipzik = asyncHandler(async (req, res) => {
         const headers = {
             "X-Timestamp": timestamp,
             "access_key": process.env.IMPACTPEEK_FLIPZIK_ACCESS_KEY,
-            "signature": signature
+            "signature": signature,
+            "Content-Type":"application/json"
         };
 
         const response = await axios.get(url, { headers });
