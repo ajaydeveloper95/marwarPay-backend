@@ -310,7 +310,7 @@ async function processWaayuPayOutFnMindMatrix(item, indexNumber) {
 }
 
 let tempTrxIds = []
-function scheduleFlipzik() {
+function scheduleFlipzikImpactPeek() {
     cron.schedule('*/50 * * * * *', async () => {
         const release = await transactionMutex.acquire();
         // let tenDaysAgo = new Date();
@@ -340,7 +340,7 @@ function scheduleFlipzik() {
 }
 
 function generateSignature(timestamp, body, path, queryString = '', method = 'POST') {
-    const hmac = crypto.createHmac('sha512', process.env.FLIPZIK_SECRET_KEY);
+    const hmac = crypto.createHmac('sha512', process.env.IMPACTPEEK_FLIPZIK_SECRET_KEY);
     hmac.update(method + "\n" + path + "\n" + queryString + "\n" + body + "\n" + timestamp + "\n");
     return hmac.digest('hex');
 }
@@ -536,17 +536,18 @@ async function flipzikStatusCheck(payout_id) {
 
         const headers = {
             "X-Timestamp": timestamp,
-            "access_key": process.env.FLIPZIK_ACCESS_KEY,
+            "access_key": process.env.IMPACTPEEK_FLIPZIK_ACCESS_KEY,
             "signature": signature
         };
 
         const response = await axios.get(url, { headers });
 
-        console.log("Transaction Status:", response.data);
-        return response.data;
+        // console.log("Transaction Status:", response?.data);
+        return response?.data;
 
     } catch (error) {
         // console.log("error in process flipzik=>", error)
+        // console.log(error.response.data.message, "error")
         return error.response.data.message
     }
 }
@@ -1615,7 +1616,7 @@ export default function scheduleTask() {
     // payoutTaskScript()
     // payoutDeductPackageTaskScript()
     // payinScheduleTask2()
-    // scheduleFlipzik()
+    // scheduleFlipzikImpactPeek()
     // EwalletManuplation()
     // payOutDuplicateEntryRemove()
 }
