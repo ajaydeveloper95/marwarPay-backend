@@ -312,7 +312,7 @@ async function processWaayuPayOutFnMindMatrix(item, indexNumber) {
 let tempTrxIds = []
 function scheduleFlipzikImpactPeek() {
     cron.schedule('*/5 * * * * *', async () => {
-        
+
         const threeHoursAgo = new Date();
         threeHoursAgo.setHours(threeHoursAgo.getHours() - 3)
 
@@ -340,8 +340,8 @@ function generateSignature(timestamp, body, path, queryString = '', method = 'PO
 async function processFlipzikPayout(item) {
     const data = await flipzikStatusCheckImpactPeek(item.trxId)
 
-    // console.log(data);
-    // return true;
+    console.log(data);
+    return true;
 
     const session = await userDB.startSession({ readPreference: 'primary', readConcern: { level: "majority" }, writeConcern: { w: "majority" } });
     const release = await transactionMutex.acquire();
