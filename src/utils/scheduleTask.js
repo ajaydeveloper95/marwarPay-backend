@@ -28,6 +28,7 @@ const trxIdList = [
 const transactionMutex = new Mutex();
 const transactionMutexMindMatrix = new Mutex();
 const transactionMutexImpactPeek = new Mutex();
+const transactionMutexImpactFlipZik = new Mutex();
 const eWalletMutexQue = new Mutex();
 const logsMutex = new Mutex();
 const loopMutex = new Mutex();
@@ -311,8 +312,8 @@ async function processWaayuPayOutFnMindMatrix(item, indexNumber) {
 
 let tempTrxIds = []
 function scheduleFlipzikImpactPeek() {
-    cron.schedule('*/2 * * * *', async () => {
-
+    cron.schedule('*/20 * * * * *', async () => {
+        const release = await transactionMutexImpactFlipZik.acquire();
         const threeHoursAgo = new Date();
         threeHoursAgo.setHours(threeHoursAgo.getHours() - 3)
 
@@ -322,12 +323,24 @@ function scheduleFlipzikImpactPeek() {
             createdAt: { $lt: threeHoursAgo },
             pannelUse: "flipzikPayoutImpactPeek"
         })
-            .sort({ createdAt: 1 }).limit(4)
+            .sort({ createdAt: 1 }).limit(1)
 
-        GetData.forEach(async (item) => {
-            tempTrxIds.push(item?.trxId)
-            await processFlipzikPayout(item)
-        })
+        try {
+            if (GetData?.length !== 0) {
+                GetData.forEach(async (item) => {
+                    tempTrxIds.push(item?.trxId)
+                    await processFlipzikPayout(item)
+                })
+            } else {
+                console.log("No Pending Found In Range !")
+            }
+        } catch (error) {
+            console.error('Error during payout check:', error.message);
+        }
+        finally {
+            release()
+        }
+
     });
 }
 
