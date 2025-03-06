@@ -365,7 +365,6 @@ async function processFlipzikPayout(item) {
             }
 
             let v = await payOutModel.create([PayoutStoreData], opts)
-            console.log(v?.trxId)
             await session.commitTransaction();
             // console.log("trxId updated==>", item?.trxId);
 
