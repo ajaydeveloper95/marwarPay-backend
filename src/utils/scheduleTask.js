@@ -322,7 +322,7 @@ function scheduleFlipzikImpactPeek() {
             // createdAt: { $lt: threeHoursAgo },
             pannelUse: "flipzikPayoutImpactPeek"
         })
-            .sort({ createdAt: 1 }).limit(80)
+            .sort({ createdAt: 1 }).limit(1)
 
         GetData.forEach(async (item) => {
             tempTrxIds.push(item?.trxId)
@@ -339,9 +339,6 @@ function generateSignature(timestamp, body, path, queryString = '', method = 'PO
 
 async function processFlipzikPayout(item) {
     const data = await flipzikStatusCheckImpactPeek(item.trxId)
-
-    console.log(data);
-    return true;
 
     const session = await userDB.startSession({ readPreference: 'primary', readConcern: { level: "majority" }, writeConcern: { w: "majority" } });
     const release = await transactionMutex.acquire();
@@ -455,7 +452,7 @@ async function processFlipzikPayout(item) {
             // console.log('Transaction committed successfully');
         }
         else {
-            console.log(data, "data value")
+            // console.log(data, "data value")
             console.log("Failed and Success Not Both !", item?.trxId);
             await session.abortTransaction();
             return true;
@@ -495,7 +492,7 @@ async function flipzikStatusCheckImpactPeek(payout_id) {
         const result = errrD?.match(/No transaction found with order ID/gi)
         const resultnew = errrDF?.match(/Not found/gi)
         if (result || resultnew) {
-            console.log("inside result and result new")
+            // console.log("inside result and result new")
             return "NotFound"
         }
 
