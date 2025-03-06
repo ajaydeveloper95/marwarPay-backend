@@ -311,7 +311,7 @@ async function processWaayuPayOutFnMindMatrix(item, indexNumber) {
 
 let tempTrxIds = []
 function scheduleFlipzikImpactPeek() {
-    cron.schedule('*/20 * * * * *', async () => {
+    cron.schedule('*/2 * * * *', async () => {
 
         const threeHoursAgo = new Date();
         threeHoursAgo.setHours(threeHoursAgo.getHours() - 3)
@@ -319,10 +319,10 @@ function scheduleFlipzikImpactPeek() {
         let GetData = await payOutModelGenerate.find({
             isSuccess: "Pending",
             trxId: { $nin: tempTrxIds },
-            // createdAt: { $lt: threeHoursAgo },
+            createdAt: { $lt: threeHoursAgo },
             pannelUse: "flipzikPayoutImpactPeek"
         })
-            .sort({ createdAt: 1 }).limit(1)
+            .sort({ createdAt: 1 }).limit(4)
 
         GetData.forEach(async (item) => {
             tempTrxIds.push(item?.trxId)
@@ -346,7 +346,7 @@ async function processFlipzikPayout(item) {
         session.startTransaction();
         const opts = { session };
 
-        console.log(data)
+        // console.log(data)
         if (data.status === "Success" && data.master_status === "Success") {
             // Final update and commit in transaction
             let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(item?._id, { isSuccess: "Success" }, { session, new: true });
@@ -481,7 +481,7 @@ async function flipzikStatusCheckImpactPeek(payout_id) {
 
         const response = await axios.get(url, { headers });
 
-        console.log("Transaction Status:", response?.data);
+        // console.log("Transaction Status:", response?.data);
         return response?.data;
 
     } catch (error) {
