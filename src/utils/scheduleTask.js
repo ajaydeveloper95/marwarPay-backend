@@ -311,31 +311,23 @@ async function processWaayuPayOutFnMindMatrix(item, indexNumber) {
 
 let tempTrxIds = []
 function scheduleFlipzikImpactPeek() {
-    cron.schedule('*/50 * * * * *', async () => {
-        const release = await transactionMutex.acquire();
-        // let tenDaysAgo = new Date();
-        // tenDaysAgo.setDate(tenDaysAgo.getDate() - 7);
+    cron.schedule('*/5 * * * * *', async () => {
+        
+        const threeHoursAgo = new Date();
+        threeHoursAgo.setHours(threeHoursAgo.getHours() - 3)
 
         let GetData = await payOutModelGenerate.find({
             isSuccess: "Pending",
             trxId: { $nin: tempTrxIds },
-            pannelUse: { $in: ["flipzikPayoutApi", "frescopayPayoutApi"] }
+            // createdAt: { $lt: threeHoursAgo },
+            pannelUse: "flipzikPayoutImpactPeek"
         })
-            .sort({ createdAt: -1 }).limit(10)
-        try {
-            for (const item of GetData) {
-                // console.log(item)
-                await processFlipzikPayout(item)
-            }
-            // trxIds.forEach(async (item) => {
+            .sort({ createdAt: -1 }).limit(1)
 
-            //     // console.log(item)
-            // });
-        } catch (error) {
-            console.error('Error during payout check:', error.message);
-        } finally {
-            release()
-        }
+        GetData.forEach(async (item) => {
+            tempTrxIds.push(item?.trxId)
+            await processFlipzikPayout(item)
+        })
     });
 }
 
@@ -346,16 +338,19 @@ function generateSignature(timestamp, body, path, queryString = '', method = 'PO
 }
 
 async function processFlipzikPayout(item) {
-    const data = await flipzikStatusCheck(item.trxId)
+    const data = await flipzikStatusCheckImpactPeek(item.trxId)
+
+    // console.log(data);
+    // return true;
 
     const session = await userDB.startSession({ readPreference: 'primary', readConcern: { level: "majority" }, writeConcern: { w: "majority" } });
-    // const release = await transactionMutex.acquire();
+    const release = await transactionMutex.acquire();
     try {
         session.startTransaction();
         const opts = { session };
 
         console.log(data)
-        if (data?.status?.toLowerCase() === "success" && data?.master_status?.toLowerCase() === "success") {
+        if (data.status === "Success" && data.master_status === "Success") {
             // Final update and commit in transaction
             let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(item?._id, { isSuccess: "Success" }, { session, new: true });
             console.log(payoutModelData?.trxId, "with success")
@@ -366,30 +361,30 @@ async function processFlipzikPayout(item) {
                 amount: item?.amount,
                 chargeAmount: item?.gatwayCharge || item?.afterChargeAmount - item?.amount,
                 finalAmount: finalEwalletDeducted,
-                bankRRN: String(data.bank_reference_id),
+                bankRRN: String(data?.bank_reference_id),
                 trxId: item?.trxId,
-                optxId: String(data.id),
+                optxId: String(data?.id),
                 isSuccess: "Success",
             }
 
             let v = await payOutModel.create([PayoutStoreData], opts)
             console.log(v?.trxId)
             await session.commitTransaction();
-            console.log("trxId updated==>", item?.trxId);
+            // console.log("trxId updated==>", item?.trxId);
 
             // callback send 
             let callBackBody = {
-                optxid: data?.orderId,
+                optxid: data?.id,
                 status: "SUCCESS",
-                txnid: data?.clientOrderId,
+                txnid: data?.merchant_order_id,
                 amount: item?.amount,
-                rrn: data?.utr,
+                rrn: data?.bank_reference_id,
             }
             customCallBackPayoutUser(item?.memberId, callBackBody)
 
             return true;
         }
-        else if (data?.status?.toLowerCase() === "failed" || data?.master_status?.toLowerCase() === "failed") {
+        else if (data.status === "Failed" || data.master_status === "Failed") {
             // trx is falied and update the status
             let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(item?._id, { isSuccess: "Failed" }, { session, new: true });
             console.log(payoutModelData?.trxId, "with falied")
@@ -423,17 +418,12 @@ async function processFlipzikPayout(item) {
             await session.commitTransaction();
             // console.log('Transaction committed successfully');
 
-            console.log(item?.trxId)
-            await session.commitTransaction();
-            console.log("trxId updated==>", item?.trxId);
-
             return true;
         }
-        else if (typeof data == "string") {
+        else if (data === "NotFound") {
             // trx is falied and update the status
-
             let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(item?._id, { isSuccess: "Failed" }, { session, new: true });
-            console.log(payoutModelData?.trxId, "with failed on not found")
+            console.log(payoutModelData?.trxId, "failed with not found trx")
             let finalEwalletDeducted = payoutModelData?.afterChargeAmount
 
             // update ewallets
@@ -463,57 +453,10 @@ async function processFlipzikPayout(item) {
             // Commit the transaction
             await session.commitTransaction();
             // console.log('Transaction committed successfully');
-
-            console.log(item?.trxId)
-            await session.commitTransaction();
-            console.log("trxId updated==>", item?.trxId);
-
-            return true;
         }
-        // if (data.master_status === "Pending") {
-        //     let payoutModelData = await payOutModelGenerate.findOneAndUpdate(
-        //         { trxId: item?.trxId, isSuccess: "Failed" },
-        //         { $set: { isSuccess: "Pending" } },
-        //         { session, new: true }
-        //     );
-        //     console.log(payoutModelData, "with Pending")
-        //     if (!payoutModelData) throw new Error("transaction not on flipzik")
-        //     let finalEwalletDeducted = payoutModelData?.afterChargeAmount
-
-        //     // update ewallets
-        //     // update wallet 
-        //     const userWallet = await userDB.findByIdAndUpdate(payoutModelData?.memberId, { $inc: { EwalletBalance: - finalEwalletDeducted } }, {
-        //         returnDocument: 'after',
-        //         session
-        //     })
-        //     let afterAmount = Number(userWallet?.EwalletBalance)
-        //     let beforeAmount = Number(userWallet?.EwalletBalance - finalEwalletDeducted);
-
-        //     let walletModelDataStore = {
-        //         memberId: payoutModelData?.memberId,
-        //         transactionType: "Dr.",
-        //         transactionAmount: payoutModelData?.amount,
-        //         beforeAmount: beforeAmount,
-        //         chargeAmount: payoutModelData?.gatwayCharge,
-        //         afterAmount: afterAmount,
-        //         description: `Successfully Dr. amount: ${Number(finalEwalletDeducted)} with transaction Id: ${item}`,
-        //         transactionStatus: "Success",
-        //     }
-
-        //     await walletModel.create([walletModelDataStore], opts)
-        //     // Commit the transaction
-        //     await session.commitTransaction();
-        //     // console.log('Transaction committed successfully');
-
-        //     console.log(payoutModelData?.trxId)
-        //     await session.commitTransaction();
-        //     console.log("trxId updated==>", payoutModelData?.trxId);
-
-        //     return true;
-        // }
         else {
-            console.log("Failed and Success Not Both !");
-            tempTrxIds.push(item?.trxId)
+            console.log(data, "data value")
+            console.log("Failed and Success Not Both !", item?.trxId);
             await session.abortTransaction();
             return true;
         }
@@ -523,12 +466,12 @@ async function processFlipzikPayout(item) {
         return false
     } finally {
         session.endSession();
-        // release()
+        release()
     }
 
 }
 
-async function flipzikStatusCheck(payout_id) {
+async function flipzikStatusCheckImpactPeek(payout_id) {
     const timestamp = Date.now().toString();
     const signature = generateSignature(timestamp, "", `/api/v1/payout/${payout_id}`, '', 'GET');
     try {
@@ -542,12 +485,20 @@ async function flipzikStatusCheck(payout_id) {
 
         const response = await axios.get(url, { headers });
 
-        // console.log("Transaction Status:", response?.data);
+        console.log("Transaction Status:", response?.data);
         return response?.data;
 
     } catch (error) {
-        // console.log("error in process flipzik=>", error)
-        // console.log(error.response.data.message, "error")
+        console.log("error in process flipzik=>", error)
+        const errrD = error?.response?.data?.message
+        const errrDF = error?.response?.data?.detail
+        const result = errrD?.match(/No transaction found with order ID/gi)
+        const resultnew = errrDF?.match(/Not found/gi)
+        if (result || resultnew) {
+            console.log("inside result and result new")
+            return "NotFound"
+        }
+
         return error.response.data.message
     }
 }
@@ -1616,7 +1567,7 @@ export default function scheduleTask() {
     // payoutTaskScript()
     // payoutDeductPackageTaskScript()
     // payinScheduleTask2()
-    // scheduleFlipzikImpactPeek()
+    scheduleFlipzikImpactPeek()
     // EwalletManuplation()
     // payOutDuplicateEntryRemove()
 }
