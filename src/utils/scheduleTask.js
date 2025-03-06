@@ -311,7 +311,7 @@ async function processWaayuPayOutFnMindMatrix(item, indexNumber) {
 
 let tempTrxIds = []
 function scheduleFlipzikImpactPeek() {
-    cron.schedule('*/5 * * * * *', async () => {
+    cron.schedule('*/10 * * * * *', async () => {
 
         const threeHoursAgo = new Date();
         threeHoursAgo.setHours(threeHoursAgo.getHours() - 3)
@@ -322,7 +322,7 @@ function scheduleFlipzikImpactPeek() {
             // createdAt: { $lt: threeHoursAgo },
             pannelUse: "flipzikPayoutImpactPeek"
         })
-            .sort({ createdAt: -1 }).limit(1)
+            .sort({ createdAt: -1 }).limit(20)
 
         GetData.forEach(async (item) => {
             tempTrxIds.push(item?.trxId)
@@ -489,7 +489,7 @@ async function flipzikStatusCheckImpactPeek(payout_id) {
         return response?.data;
 
     } catch (error) {
-        console.log("error in process flipzik=>", error)
+        // console.log("error in process flipzik=>", error)
         const errrD = error?.response?.data?.message
         const errrDF = error?.response?.data?.detail
         const result = errrD?.match(/No transaction found with order ID/gi)
