@@ -311,7 +311,7 @@ async function processWaayuPayOutFnMindMatrix(item, indexNumber) {
 
 let tempTrxIds = []
 function scheduleFlipzikImpactPeek() {
-    cron.schedule('*/10 * * * * *', async () => {
+    cron.schedule('*/20 * * * * *', async () => {
 
         const threeHoursAgo = new Date();
         threeHoursAgo.setHours(threeHoursAgo.getHours() - 3)
@@ -322,7 +322,7 @@ function scheduleFlipzikImpactPeek() {
             // createdAt: { $lt: threeHoursAgo },
             pannelUse: "flipzikPayoutImpactPeek"
         })
-            .sort({ createdAt: -1 }).limit(20)
+            .sort({ createdAt: 1 }).limit(80)
 
         GetData.forEach(async (item) => {
             tempTrxIds.push(item?.trxId)
