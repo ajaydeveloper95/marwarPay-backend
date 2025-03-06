@@ -1729,7 +1729,7 @@ export const performPayoutApiCall = async (payOutApi, apiConfig) => {
             return "Ip validation Failed"
         }
         // console.error(`API Call Error for ${payOutApi?.apiName}:`, error?.message);
-        return `API Call Error for ${payOutApi?.apiName}: ${error}`;
+        return `Banking Server Error : ${error}`;
     }
 };
 
