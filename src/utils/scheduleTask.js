@@ -35,7 +35,7 @@ const loopMutex = new Mutex();
 
 let trxIdsToAvoid = []
 function scheduleWayuPayOutCheckSecond() {
-    cron.schedule('*/3 * * * *', async () => {
+    cron.schedule('*/30 * * * * *', async () => {
         const release = await transactionMutexImpactPeek.acquire();
         const threeHoursAgo = new Date();
         threeHoursAgo.setHours(threeHoursAgo.getHours() - 2)
@@ -45,12 +45,12 @@ function scheduleWayuPayOutCheckSecond() {
             createdAt: { $lt: threeHoursAgo },
             trxId: { $nin: trxIdsToAvoid }
         })
-            .sort({ createdAt: 1 }).limit(10)
+            .sort({ createdAt: 1 }).limit(1)
         try {
             if (GetData?.length !== 0) {
                 GetData.forEach(async (item) => {
                     trxIdsToAvoid.push(item?.trxId)
-                    // console.log(item)
+                    console.log(item)
                     await processWaayuPayOutFnSecond(item)
                 });
             } else {
@@ -110,6 +110,7 @@ async function processWaayuPayOutFnSecond(item) {
     };
 
     const { data } = await axios.post(uatUrl, postAdd, header);
+    console.log(data, "data")
     const session = await userDB.startSession({ readPreference: 'primary', readConcern: { level: "majority" }, writeConcern: { w: "majority" } });
     const release = await transactionMutex.acquire();
     try {
@@ -1569,7 +1570,7 @@ async function payOutDuplicateEntryRemove() {
 
 export default function scheduleTask() {
     // FailedToSuccessPayout()
-    // scheduleWayuPayOutCheckSecond()
+    scheduleWayuPayOutCheckSecond()
     // scheduleWayuPayOutCheckMindMatrix()
     // logsClearFunc()
     // migrateData()

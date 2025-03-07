@@ -509,7 +509,15 @@ export const generatePayOut = asyncHandler(async (req, res) => {
         } catch (error) {
             // console.log(error)
             await walletDucdsession.abortTransaction();
-            // console.error('Transaction aborted due to error:', error);
+            // failed and return the response
+            payOutModelGen.isSuccess = "Failed";
+            await payOutModelGen.save();
+            let respSend = {
+                statusCode: "400",
+                txnID: trxId
+            }
+
+            return res.status(400).json({ message: "Failed", data: respSend });
         }
         finally {
             walletDucdsession.endSession();
@@ -1721,7 +1729,7 @@ export const performPayoutApiCall = async (payOutApi, apiConfig) => {
             return "Ip validation Failed"
         }
         // console.error(`API Call Error for ${payOutApi?.apiName}:`, error?.message);
-        return `API Call Error for ${payOutApi?.apiName}: ${error}`;
+        return `Banking Server Error : ${error}`;
     }
 };
 
