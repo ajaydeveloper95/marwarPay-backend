@@ -110,7 +110,7 @@ async function processWaayuPayOutFnSecond(item) {
     };
 
     const { data } = await axios.post(uatUrl, postAdd, header);
-    console.log(data, "data")
+    console.log(data, "data inside the waayupay")
     const session = await userDB.startSession({ readPreference: 'primary', readConcern: { level: "majority" }, writeConcern: { w: "majority" } });
     const release = await transactionMutex.acquire();
     try {
