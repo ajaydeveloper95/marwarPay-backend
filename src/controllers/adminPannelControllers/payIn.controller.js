@@ -287,7 +287,7 @@ export const allGeneratedPayment = asyncHandler(async (req, res) => {
             let newPayments = await qrGenerationModel.aggregate(aggregationPipeline, aggregationOptions).allowDiskUse(true)
             let oldPayments = await oldQrGenerationModel.aggregate(aggregationPipeline, aggregationOptions).allowDiskUse(true)
             payments = [...oldPayments, ...newPayments]
-            
+
         } else {
             payments = await qrGenerationModel.aggregate(aggregationPipeline, aggregationOptions).allowDiskUse(true)
         }
@@ -330,7 +330,7 @@ export const allGeneratedPayment = asyncHandler(async (req, res) => {
 });
 
 export const allSuccessPayment = asyncHandler(async (req, res) => {
-    let { page = 1, limit = 25, keyword = "", startDate, endDate, memberId, export: exportToCSV } = req.query;
+    let { page = 1, limit = 25, keyword = "", startDate, endDate, memberId, export: exportToCSV, timezoneOffset = 0 } = req.query;
     page = Number(page) || 1;
     limit = Number(limit) || 25;
     const trimmedKeyword = keyword.trim();
@@ -341,14 +341,33 @@ export const allSuccessPayment = asyncHandler(async (req, res) => {
         : null;
 
     let dateFilter = {};
+    const offsetMillis = timezoneOffset * 60 * 1000;
+
     if (startDate) {
-        dateFilter.$gte = new Date(startDate);
+        let start = new Date(startDate); // Convert to Date object
+        start.setUTCHours(0, 0, 0, 0); // Start of day in local timezone
+        start = new Date(start.getTime() + offsetMillis); // Convert to UTC
+        dateFilter.$gte = start;
     }
+
     if (endDate) {
-        endDate = new Date(endDate);
-        endDate.setHours(23, 59, 59, 999);
-        dateFilter.$lt = new Date(endDate);
+        let end = new Date(endDate); // Convert to Date object
+        end.setUTCHours(23, 59, 59, 999); // End of day in local timezone
+        end = new Date(end.getTime() + offsetMillis); // Convert to UTC
+        dateFilter.$lte = end;
     }
+
+    // if (startDate) {
+    //     let start = new Date(startDate + "T00:00:00");
+    //     start.setMinutes(start.getMinutes() - timezoneOffset);
+    //     dateFilter.$gte = start;
+    // }
+
+    // if (endDate) {
+    //     let end = new Date(endDate + "T23:59:59.999");
+    //     end.setMinutes(end.getMinutes() - timezoneOffset);
+    //     dateFilter.$lt = end;
+    // }
 
     let matchFilters = {
         ...(Object.keys(dateFilter).length > 0 && { createdAt: dateFilter }),
@@ -365,16 +384,13 @@ export const allSuccessPayment = asyncHandler(async (req, res) => {
 
     let paymentQuery = [
         { $match: matchFilters },
-
         { $sort: { createdAt: sortDirection } },
-
         ...(exportToCSV != "true"
             ? [
                 { $skip: skip },
                 { $limit: limit }
             ]
             : []),
-
         {
             $lookup: {
                 from: "users",
@@ -386,8 +402,6 @@ export const allSuccessPayment = asyncHandler(async (req, res) => {
                 as: "userInfo"
             }
         },
-
-
         {
             $unwind: {
                 path: "$userInfo",
@@ -833,7 +847,7 @@ export const callBackResponse = asyncHandler(async (req, res) => {
         }
 
         let pack = await qrGenerationModel.findOne({ trxId: data?.txnID });
-        if(!pack){
+        if (!pack) {
             pack = await oldQrGenerationModel.findOne({ trxId: data?.txnID });
         }
         if (!pack || pack?.callBackStatus !== "Pending") {
