@@ -66,17 +66,15 @@ export const getBalanceImpactPeekFlipzik = asyncHandler(async (req, res) => {
             "X-Timestamp": timestamp,
             "access_key": process.env.IMPACTPEEK_FLIPZIK_ACCESS_KEY,
             "signature": signature,
-            "Content-Type":"application/json"
+            "Content-Type": "application/json"
         };
 
         const response = await axios.get(url, { headers });
 
-        console.log("Transaction Status:", response.data);
-        console.log(response?.data)
+        let balance = response?.data?.balance
         return res.status(200).json(new ApiResponse(200, balance))
     } catch (error) {
         // console.log("error in process flipzik=>", error)
-        console.log(error)
         return res.status(400).json({ message: "Failed", data: "Balance Not Fetch Successfully !" })
     }
 })
