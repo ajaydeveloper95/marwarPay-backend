@@ -55,7 +55,7 @@ export const getBalanceFetchImpactPeek = asyncHandler(async (req, res) => {
 })
 
 export const getBalanceImpactPeekFlipzik = asyncHandler(async (req, res) => {
-    let payout_id = "1"
+    let payout_id = "220"
 
     const timestamp = Date.now().toString();
     const signature = generateSignatureImpactPeekFlipzik(timestamp, "", `/api/v1/payout/balance/${payout_id}`, '', 'GET');
