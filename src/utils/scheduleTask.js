@@ -147,7 +147,7 @@ async function processWaayuPayOutFnSecond(item) {
 
             return true;
         }
-        else if (data?.status === 4 || data?.status === 0 || data?.status == null) {
+        else if (data?.status === 4 || data?.status === 0 || data?.statusCode === 6) {
             // trx is falied and update the status
             let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(item?._id, { isSuccess: "Failed" }, { session, new: true });
             console.log(payoutModelData?.trxId, "with falied")
@@ -255,7 +255,7 @@ async function processWaayuPayOutFnMindMatrix(item, indexNumber) {
 
             return true;
         }
-        else if (data?.status === 4 || data?.status === 0 || data?.status == null) {
+        else if (data?.status === 4 || data?.status === 0 || data?.statusCode === 6) {
             // trx is falied and update the status
             let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(item?._id, { isSuccess: "Failed" }, { session, new: true });
             console.log(payoutModelData?.trxId, "with falied, Index", indexNumber)
