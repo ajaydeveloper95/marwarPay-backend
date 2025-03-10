@@ -2,6 +2,7 @@ import cron from "node-cron";
 import axios from "axios";
 import userDB from "../models/user.model.js";
 import payOutModelGenerate from "../models/payOutGenerate.model.js";
+import oldPayOutModelGenerate from "../models/oldPayOutGenerate.model.js";
 import walletModel from "../models/Ewallet.model.js";
 import payOutModel from "../models/payOutSuccess.model.js";
 import LogModel from "../models/Logs.model.js";
@@ -29,6 +30,7 @@ const transactionMutex = new Mutex();
 const transactionMutexMindMatrix = new Mutex();
 const transactionMutexImpactPeek = new Mutex();
 const transactionMutexImpactFlipZik = new Mutex();
+const dataMigratePayoutMutex = new Mutex();
 const eWalletMutexQue = new Mutex();
 const logsMutex = new Mutex();
 const loopMutex = new Mutex();
@@ -513,7 +515,7 @@ async function flipzikStatusCheckImpactPeek(payout_id) {
     }
 }
 
-function migrateData() {
+function migrateDataPayin() {
     cron.schedule('*/20 * * * *', async () => {
         const release = await transactionMutex.acquire();
         try {
@@ -545,6 +547,51 @@ function migrateData() {
                 await qrGenerationModel.deleteMany({ _id: { $in: oldDataIds } });
 
                 console.log(`Successfully migrated ${oldData.length} records.`);
+            } else {
+                console.log("No data older than 1 day to migrate.");
+            }
+        } catch (error) {
+            console.log("error=>", error.message);
+        } finally {
+            release()
+        }
+    }
+    )
+}
+
+function migrateDataPayOut() {
+    cron.schedule('*/20 * * * * *', async () => {
+        const release = await dataMigratePayoutMutex.acquire();
+        try {
+            console.log("Running cron job to migrate old data Payout...");
+
+            const threeHoursAgo = new Date();
+            threeHoursAgo.setHours(threeHoursAgo.getHours() - 12)
+
+            const oldData = await payOutModelGenerate.find({ createdAt: { $lt: threeHoursAgo } }).sort({ createdAt: 1 }).limit(3000);
+
+            if (oldData.length > 0) {
+                const newData = oldData.map(item => ({
+                    memberId: new mongoose.Types.ObjectId((String(item?.memberId))),
+                    mobileNumber: String(item?.mobileNumber),
+                    accountHolderName: String(item?.accountHolderName),
+                    accountNumber: String(item?.accountNumber),
+                    ifscCode: String(item?.ifscCode),
+                    amount: Number(item?.amount),
+                    gatwayCharge: Number(item?.gatwayCharge) || 0,
+                    afterChargeAmount: Number(item?.afterChargeAmount),
+                    trxId: String(item?.trxId),
+                    pannelUse: String(item?.pannelUse),
+                    isSuccess: String(item?.isSuccess),
+                    migratedAt: new Date(),
+                })
+                );
+                await oldPayOutModelGenerate.insertMany(newData);
+
+                const oldDataIds = oldData.map(item => item._id);
+                await payOutModelGenerate.deleteMany({ _id: { $in: oldDataIds } });
+
+                console.log(`Successfully migrated Payout ${oldData.length} records.`);
             } else {
                 console.log("No data older than 1 day to migrate.");
             }
@@ -1572,7 +1619,8 @@ export default function scheduleTask() {
     // scheduleWayuPayOutCheckSecond()
     // scheduleWayuPayOutCheckMindMatrix()
     // logsClearFunc()
-    // migrateData()
+    // migrateDataPayin()
+    // migrateDataPayOut()
     // payinScheduleTask()
     // payoutTaskScript()
     // payoutDeductPackageTaskScript()
