@@ -1,5 +1,6 @@
 import { ApiResponse } from "../../utils/ApiResponse.js"
 import payOutModelGen from "../../models/payOutGenerate.model.js"
+import oldPayOutModelGen from "../../models/oldPayOutGenerate.model.js"
 import payOutModelSuccess from "../../models/payOutSuccess.model.js"
 import userDB from "../../models/user.model.js"
 import { asyncHandler } from "../../utils/asyncHandler.js"
@@ -54,6 +55,10 @@ export const allPayOutTransactionGeneration = asyncHandler(async (req, res) => {
         const aggregationPipeline = [
             { $match: { ...matchFilters } },
             { $sort: { createdAt: sortDirection } },
+            ...(exportToCSV !== "true"
+                ? [{ $skip: skip }, { $limit: limit }]
+                : []
+            ),
             {
                 $lookup: {
                     from: "users",
@@ -86,16 +91,70 @@ export const allPayOutTransactionGeneration = asyncHandler(async (req, res) => {
                     "gatwayCharge": 1
                 }
             },
-
-            ...(exportToCSV !== "true"
-                ? [{ $skip: skip }, { $limit: limit }]
-                : []
-            ),
-
             // { $sort: { createdAt: -1 } }
         ];
 
+        const totalDocs = await payOutModelGen.countDocuments(matchFilters);
+        const totalDocsOld = await oldPayOutModelGen.countDocuments(matchFilters);
+
         const payoutDocs = await payOutModelGen.aggregate(aggregationPipeline, aggregationOptions);
+
+        let finalResult;
+        if (payoutDocs.length < limit) {
+            // limit 
+            let remainingLimit = limit - payoutDocs.length
+            let oldSkip = skip - totalDocs
+
+            if (oldSkip < 0) {
+                oldSkip = 0
+            }
+
+            const aggregationPipeline2 = [
+                { $match: { ...matchFilters } },
+                { $sort: { createdAt: sortDirection } },
+                ...(exportToCSV !== "true"
+                    ? [{ $skip: oldSkip }, { $limit: remainingLimit }]
+                    : []
+                ),
+                {
+                    $lookup: {
+                        from: "users",
+                        localField: "memberId",
+                        foreignField: "_id",
+                        as: "userInfo"
+                    }
+                },
+                {
+                    $unwind: {
+                        path: "$userInfo",
+                        preserveNullAndEmptyArrays: true
+                    }
+                },
+                {
+                    $project: {
+                        "_id": 1,
+                        "memberId": 1,
+                        "trxId": 1,
+                        "amount": 1,
+                        "mobileNumber": 1,
+                        "accountHolderName": 1,
+                        "accountNumber": 1,
+                        "ifscCode": 1,
+                        "isSuccess": 1,
+                        "createdAt": 1,
+                        "updatedAt": 1,
+                        "userInfo._id": 1,
+                        "userInfo.memberId": 1,
+                        "gatwayCharge": 1
+                    }
+                },
+                // { $sort: { createdAt: -1 } }
+            ];
+
+            const payoutDocsOld = await oldPayOutModelGen.aggregate(aggregationPipeline2, aggregationOptions);
+
+            finalResult = [...payoutDocs, ...payoutDocsOld]
+        }
 
         if (exportToCSV === "true") {
             const fields = [
@@ -118,21 +177,21 @@ export const allPayOutTransactionGeneration = asyncHandler(async (req, res) => {
             ];
 
             const json2csvParser = new Parser({ fields });
-            const csv = json2csvParser.parse(payoutDocs);
+            const csv = json2csvParser.parse(finalResult);
 
             res.header('Content-Type', 'text/csv');
             res.attachment(`payoutPayments-${startDate}-${endDate}.csv`);
 
             return res.status(200).send(csv);
         }
-        const totalDocs = await payOutModelGen.countDocuments(matchFilters);
 
-        if (!payoutDocs || payoutDocs.length === 0) {
+        if (!finalResult || finalResult.length === 0) {
             return res.status(400).json({ message: "Failed", data: "No Transaction Available!" });
         }
-        res.status(200).json(new ApiResponse(200, payoutDocs, totalDocs))
+        let totalDocsBoth = totalDocs + totalDocsOld
+        res.status(200).json(new ApiResponse(200, finalResult, totalDocsBoth))
     } catch (error) {
-        console.log("🚀 ~ allPayOutTransactionGeneration ~ error:", error)
+        // console.log("🚀 ~ allPayOutTransactionGeneration ~ error:", error)
         res.status(500).json({ message: "Failed", data: `Internal Server Error: ${err.message}` });
     }
 
