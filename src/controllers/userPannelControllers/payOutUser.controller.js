@@ -100,7 +100,7 @@ export const allPayOutTransactionGeneration = asyncHandler(async (req, res) => {
         const payoutDocs = await payOutModelGen.aggregate(aggregationPipeline, aggregationOptions);
 
         let finalResult;
-        if (payoutDocs.length < limit) {
+        if (payoutDocs.length < limit || exportToCSV === "true") {
             // limit 
             let remainingLimit = limit - payoutDocs.length
             let oldSkip = skip - totalDocs
@@ -156,6 +156,10 @@ export const allPayOutTransactionGeneration = asyncHandler(async (req, res) => {
             finalResult = [...payoutDocs, ...payoutDocsOld]
         }
 
+        if (!finalResult || finalResult.length === 0) {
+            return res.status(400).json({ message: "Failed", data: "No Transaction Available!" });
+        }
+
         if (exportToCSV === "true") {
             const fields = [
                 "_id",
@@ -180,18 +184,15 @@ export const allPayOutTransactionGeneration = asyncHandler(async (req, res) => {
             const csv = json2csvParser.parse(finalResult);
 
             res.header('Content-Type', 'text/csv');
-            res.attachment(`payoutPayments-${startDate}-${endDate}.csv`);
+            res.attachment(`payoutPayments-${startDate || 'all'}-${endDate || 'all'}.csv`);
 
             return res.status(200).send(csv);
         }
 
-        if (!finalResult || finalResult.length === 0) {
-            return res.status(400).json({ message: "Failed", data: "No Transaction Available!" });
-        }
         let totalDocsBoth = totalDocs + totalDocsOld
+
         res.status(200).json(new ApiResponse(200, finalResult, totalDocsBoth))
     } catch (error) {
-        // console.log("🚀 ~ allPayOutTransactionGeneration ~ error:", error)
         res.status(500).json({ message: "Failed", data: `Internal Server Error: ${err.message}` });
     }
 
@@ -333,7 +334,6 @@ export const allPayOutTransactionSuccess = asyncHandler(async (req, res) => {
         const totalDocs = await payOutModelSuccess.countDocuments(matchFilters);
         res.status(200).json(new ApiResponse(200, data, totalDocs));
     }).catch((error) => {
-        console.log("payOutModelSuccess.aggregate ~ error:", error);
         res.status(500).json({ message: "Failed", data: "Some Inter Server Error!" })
     })
 })
