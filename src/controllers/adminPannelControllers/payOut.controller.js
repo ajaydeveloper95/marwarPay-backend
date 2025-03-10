@@ -1,5 +1,6 @@
 import axios from "axios";
 import payOutModelGenerate from "../../models/payOutGenerate.model.js";
+import oldPayOutModelGenerate from "../../models/oldPayOutGenerate.model.js";
 import payOutModel from "../../models/payOutSuccess.model.js";
 import walletModel from "../../models/Ewallet.model.js";
 import callBackResponse from "../../models/callBackResponse.model.js";
@@ -58,6 +59,7 @@ export const allPayOutPayment = asyncHandler(async (req, res) => {
 
         // Get total count of matching documents
         const totalDocs = await payOutModelGenerate.countDocuments(matchFilters);
+        const totalDocsOld = await oldPayOutModelGenerate.countDocuments(matchFilters);
         const sortDirection = Object.keys(dateFilter).length > 0 ? 1 : -1;
 
         // Aggregation Pipeline
@@ -128,7 +130,91 @@ export const allPayOutPayment = asyncHandler(async (req, res) => {
         // Execute aggregation query
         const payment = await payOutModelGenerate.aggregate(pipeline).allowDiskUse(true);
 
-        if (!payment || payment.length === 0) {
+        let finalResult;
+        if (payment.length < limit || exportToCSV === "true") {
+
+            // limit 
+            let remainingLimit = limit - payment.length
+            let oldSkip = skip - totalDocs
+
+            if (oldSkip < 0) {
+                oldSkip = 0
+            }
+
+
+            // handle aggragration
+            const pipeline2 = [
+                { $match: matchFilters },
+                { $sort: { createdAt: sortDirection } },
+
+                ...(exportToCSV !== "true" ? [{ $skip: oldSkip }, { $limit: remainingLimit }] : []),
+
+                {
+                    $lookup: {
+                        from: "users",
+                        localField: "memberId",
+                        foreignField: "_id",
+                        as: "userInfo",
+                        pipeline: [{ $project: { userName: 1, fullName: 1, memberId: 1 } }]
+                    }
+                },
+                { $unwind: { path: "$userInfo", preserveNullAndEmptyArrays: true } },
+
+                {
+                    $lookup: {
+                        from: "payoutrecodes",
+                        localField: "trxId",
+                        foreignField: "trxId",
+                        as: "payoutSuccessData",
+                        pipeline: [{ $project: { chargeAmount: 1, finalAmount: 1 } }]
+                    }
+                },
+                { $unwind: { path: "$payoutSuccessData", preserveNullAndEmptyArrays: true } },
+
+                ...(exportToCSV === "true"
+                    ? [{
+                        $addFields: {
+                            createdAt: {
+                                $dateToString: {
+                                    format: "%Y-%m-%d %H:%M:%S",
+                                    date: { $add: ["$createdAt", 0] },
+                                    timezone: "Asia/Kolkata"
+                                }
+                            }
+                        }
+                    }]
+                    : []),
+
+                {
+                    $project: {
+                        _id: 1,
+                        trxId: 1,
+                        accountHolderName: 1,
+                        optxId: 1,
+                        accountNumber: 1,
+                        ifscCode: 1,
+                        amount: 1,
+                        isSuccess: 1,
+                        pannelUse: 1,  // Ensure this field is correctly fetched
+                        "payoutSuccessData.chargeAmount": 1,
+                        "payoutSuccessData.finalAmount": 1,
+                        createdAt: 1,
+                        status: 1,
+                        "userInfo.userName": 1,
+                        "userInfo.fullName": 1,
+                        "userInfo.memberId": 1
+                    }
+                }
+            ];
+
+            // Execute aggregation query
+            const paymentOld = await oldPayOutModelGenerate.aggregate(pipeline2).allowDiskUse(true);
+
+            // connect new data and old data
+            finalResult = [...payment, ...paymentOld]
+        }
+
+        if (!finalResult || finalResult.length === 0) {
             return res.status(400).json({ message: "Failed", data: "No Transaction Available!" });
         }
 
@@ -154,7 +240,8 @@ export const allPayOutPayment = asyncHandler(async (req, res) => {
             ];
 
             const json2csvParser = new Parser({ fields });
-            const csv = json2csvParser.parse(payment);
+            // const csv = json2csvParser.parse(payment);
+            const csv = json2csvParser.parse(finalResult);
 
             res.header('Content-Type', 'text/csv');
             res.attachment(`payoutPayments-${startDate || 'all'}-${endDate || 'all'}.csv`);
@@ -162,8 +249,10 @@ export const allPayOutPayment = asyncHandler(async (req, res) => {
             return res.status(200).send(csv);
         }
 
+        let TotalDocsBoth = totalDocsOld + totalDocs
+
         // API response
-        return res.status(200).json(new ApiResponse(200, payment, totalDocs));
+        return res.status(200).json(new ApiResponse(200, finalResult, TotalDocsBoth));
 
     } catch (err) {
         res.status(500).json({ message: "Failed", data: `Internal Server Error: ${err.message}` });
