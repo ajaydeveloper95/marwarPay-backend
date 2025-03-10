@@ -568,7 +568,7 @@ function migrateDataPayOut() {
             const threeHoursAgo = new Date();
             threeHoursAgo.setHours(threeHoursAgo.getHours() - 12)
 
-            const oldData = await payOutModelGenerate.find({ createdAt: { $lt: threeHoursAgo } }).sort({ createdAt: 1 }).limit(3000);
+            const oldData = await payOutModelGenerate.find({ createdAt: { $lt: threeHoursAgo }, isSuccess: { $nin: ["Pending", "pending"] } }).sort({ createdAt: 1 }).limit(3000);
 
             if (oldData.length > 0) {
                 const newData = oldData.map(item => ({
