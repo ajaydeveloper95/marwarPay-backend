@@ -47,7 +47,7 @@ function scheduleWayuPayOutCheckSecond() {
             createdAt: { $lt: threeHoursAgo },
             trxId: { $nin: trxIdsToAvoid }
         })
-            .sort({ createdAt: 1 }).limit(1)
+            .sort({ createdAt: 1 }).limit(40)
         try {
             if (GetData?.length !== 0) {
                 GetData.forEach(async (item) => {
