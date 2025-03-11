@@ -68,7 +68,7 @@ function scheduleWayuPayOutCheckSecond() {
 
 let trxIdsToAvoidMindMatrix = []
 function scheduleWayuPayOutCheckMindMatrix() {
-    cron.schedule('*/2 * * * *', async () => {
+    cron.schedule('*/30 * * * * *', async () => {
         const release = await transactionMutexMindMatrix.acquire();
         const threeHoursAgo = new Date();
         threeHoursAgo.setHours(threeHoursAgo.getHours() - 2)
@@ -78,7 +78,7 @@ function scheduleWayuPayOutCheckMindMatrix() {
             createdAt: { $lt: threeHoursAgo },
             trxId: { $nin: trxIdsToAvoidMindMatrix }
         })
-            .sort({ createdAt: -1 }).limit(10)
+            .sort({ createdAt: -1 }).limit(1)
         try {
             if (GetData?.length !== 0) {
                 GetData.forEach(async (item, index) => {
