@@ -562,7 +562,7 @@ function migrateDataPayin() {
 }
 
 function migrateDataPayOut() {
-    cron.schedule('*/20 * * * * *', async () => {
+    cron.schedule('*/20 * * * *', async () => {
         const release = await dataMigratePayoutMutex.acquire();
         try {
             console.log("Running cron job to migrate old data Payout...");
@@ -570,7 +570,7 @@ function migrateDataPayOut() {
             const threeHoursAgo = new Date();
             threeHoursAgo.setHours(threeHoursAgo.getHours() - 12)
 
-            const oldData = await payOutModelGenerate.find({ createdAt: { $lt: threeHoursAgo }, isSuccess: { $nin: ["Pending", "pending"] } }).sort({ createdAt: 1 }).limit(1);
+            const oldData = await payOutModelGenerate.find({ createdAt: { $lt: threeHoursAgo }, isSuccess: { $nin: ["Pending", "pending"] } }).sort({ createdAt: 1 }).limit(5000);
 
             if (oldData.length > 0) {
                 const newData = oldData.map(item => ({
@@ -580,7 +580,7 @@ function migrateDataPayOut() {
                     accountNumber: String(item?.accountNumber),
                     ifscCode: String(item?.ifscCode),
                     amount: Number(item?.amount),
-                    gatwayCharge: Number(item?.gatwayCharge) || 0,
+                    gatwayCharge: Number(item?.gatwayCharge) || Number(item?.afterChargeAmount) - Number(item?.amount),
                     afterChargeAmount: Number(item?.afterChargeAmount),
                     trxId: String(item?.trxId),
                     pannelUse: String(item?.pannelUse),
@@ -1624,7 +1624,7 @@ export default function scheduleTask() {
     // scheduleWayuPayOutCheckMindMatrix()
     // logsClearFunc()
     // migrateDataPayin()
-    migrateDataPayOut()
+    // migrateDataPayOut()
     // payinScheduleTask()
     // payoutTaskScript()
     // payoutDeductPackageTaskScript()
