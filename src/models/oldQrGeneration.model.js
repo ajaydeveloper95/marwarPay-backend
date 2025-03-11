@@ -42,7 +42,15 @@ const oldQrGenerationSchema = new Schema({
         enum: ["Pending", "Failed", "Success"],
         default: "Pending"
     },
-}, { timestamps: true });
+    createdAt: {
+        type: Date,
+        required: [true, "createdAt date required"]
+    },
+    updatedAt: {
+        type: Date,
+        required: [true, "updateAt date required"]
+    }
+}, { timestamps: { createdAt: 'CreatedAtMigrate', updatedAt: 'UpdatedAtMigrate' } });
 oldQrGenerationSchema.index({ createdAt: 1 })
-oldQrGenerationSchema.index({ trxId: 1 })
+oldQrGenerationSchema.index({ trxId: 1 }, { unique: true })
 export default new model("oldQrGenerationRecode", oldQrGenerationSchema);

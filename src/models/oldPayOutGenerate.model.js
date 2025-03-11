@@ -50,7 +50,15 @@ const oldPayOutSchemaGen = new Schema({
         enum: ["Pending", "Failed", "Success"],
         default: "Pending",
     },
-}, { timestamps: true });
+    createdAt: {
+        type: Date,
+        required: [true, "createdAt date required"]
+    },
+    updatedAt: {
+        type: Date,
+        required: [true, "updateAt date required"]
+    }
+}, { timestamps: { createdAt: 'CreatedAtMigrate', updatedAt: 'UpdatedAtMigrate' } });
 
 oldPayOutSchemaGen.index({ createdAt: 1 })
 oldPayOutSchemaGen.index({ trxId: 1 }, { unique: true })

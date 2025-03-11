@@ -539,6 +539,8 @@ function migrateDataPayin() {
                     pannelUse: String(item?.pannelUse),
                     callBackStatus: String(item?.callBackStatus),
                     migratedAt: new Date(),
+                    createdAt: item?.createdAt,
+                    updatedAt: item?.updatedAt
                 })
                 );
                 await oldQrGenerationModel.insertMany(newData);
@@ -568,7 +570,7 @@ function migrateDataPayOut() {
             const threeHoursAgo = new Date();
             threeHoursAgo.setHours(threeHoursAgo.getHours() - 12)
 
-            const oldData = await payOutModelGenerate.find({ createdAt: { $lt: threeHoursAgo }, isSuccess: { $nin: ["Pending", "pending"] } }).sort({ createdAt: 1 }).limit(3000);
+            const oldData = await payOutModelGenerate.find({ createdAt: { $lt: threeHoursAgo }, isSuccess: { $nin: ["Pending", "pending"] } }).sort({ createdAt: 1 }).limit(1);
 
             if (oldData.length > 0) {
                 const newData = oldData.map(item => ({
@@ -584,6 +586,8 @@ function migrateDataPayOut() {
                     pannelUse: String(item?.pannelUse),
                     isSuccess: String(item?.isSuccess),
                     migratedAt: new Date(),
+                    createdAt: item?.createdAt,
+                    updatedAt: item?.updatedAt
                 })
                 );
                 await oldPayOutModelGenerate.insertMany(newData);
@@ -1620,7 +1624,7 @@ export default function scheduleTask() {
     // scheduleWayuPayOutCheckMindMatrix()
     // logsClearFunc()
     // migrateDataPayin()
-    // migrateDataPayOut()
+    migrateDataPayOut()
     // payinScheduleTask()
     // payoutTaskScript()
     // payoutDeductPackageTaskScript()
