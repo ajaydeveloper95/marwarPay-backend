@@ -130,7 +130,7 @@ export const allPayOutPayment = asyncHandler(async (req, res) => {
         // Execute aggregation query
         const payment = await payOutModelGenerate.aggregate(pipeline).allowDiskUse(true);
 
-        let finalResult;
+        let finalResult = payment;
         if (payment.length < limit || exportToCSV === "true") {
 
             // limit 
@@ -211,7 +211,8 @@ export const allPayOutPayment = asyncHandler(async (req, res) => {
             const paymentOld = await oldPayOutModelGenerate.aggregate(pipeline2).allowDiskUse(true);
 
             // connect new data and old data
-            finalResult = [...payment, ...paymentOld]
+            // finalResult = [...payment, ...paymentOld]
+            finalResult = finalResult.concat(paymentOld)
         }
 
         if (!finalResult || finalResult.length === 0) {

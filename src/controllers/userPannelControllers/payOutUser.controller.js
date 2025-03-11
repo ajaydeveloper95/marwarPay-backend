@@ -99,7 +99,7 @@ export const allPayOutTransactionGeneration = asyncHandler(async (req, res) => {
 
         const payoutDocs = await payOutModelGen.aggregate(aggregationPipeline, aggregationOptions);
 
-        let finalResult;
+        let finalResult = payoutDocs;
         if (payoutDocs.length < limit || exportToCSV === "true") {
             // limit 
             let remainingLimit = limit - payoutDocs.length
@@ -153,7 +153,8 @@ export const allPayOutTransactionGeneration = asyncHandler(async (req, res) => {
 
             const payoutDocsOld = await oldPayOutModelGen.aggregate(aggregationPipeline2, aggregationOptions);
 
-            finalResult = [...payoutDocs, ...payoutDocsOld]
+            // finalResult = [...payoutDocs, ...payoutDocsOld]
+            finalResult = finalResult.concat(payoutDocsOld)
         }
 
         if (!finalResult || finalResult.length === 0) {
