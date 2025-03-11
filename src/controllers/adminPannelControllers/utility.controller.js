@@ -71,7 +71,7 @@ export const getBalanceImpactPeekFlipzik = asyncHandler(async (req, res) => {
 
         const response = await axios.get(url, { headers });
 
-        let balance = response?.data?.balance
+        let balance = Number(response?.data?.balance) / 100
         return res.status(200).json(new ApiResponse(200, balance))
     } catch (error) {
         // console.log("error in process flipzik=>", error)
