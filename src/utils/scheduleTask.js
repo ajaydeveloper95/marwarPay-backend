@@ -26,6 +26,12 @@ const matchingTrxIds = [
 const trxIdList = [
     "seabird7010828",
     "seabird7009735"]
+
+const payoutMigrateEntry = [
+    "seabird8930492",
+    "seabird8964113",
+]
+
 const transactionMutex = new Mutex();
 const transactionMutexMindMatrix = new Mutex();
 const transactionMutexImpactPeek = new Mutex();
@@ -1618,6 +1624,40 @@ async function payOutDuplicateEntryRemove() {
     return true
 }
 
+function payoutMigrateDuplicateEntry() {
+    payoutMigrateEntry.forEach(async (item, index) => {
+        // if (index > 0) {
+        //     return false
+        // }
+        await payoutMigrateDuplicateFunc(item)
+    })
+}
+
+async function payoutMigrateDuplicateFunc(trxId) {
+    // get old qr data 
+    let oldPayout = await oldPayOutModelGenerate.findOne({ trxId: trxId })
+    if (!oldPayout) {
+        console.log("not found oldPayoutGen trxId :", trxId);
+        return false
+    } else {
+        let payout = await payOutModelGenerate.findOne({ trxId: trxId, isSuccess: "Success" })
+        if (!payout) {
+            console.log("not Found payoutGen trxId :", trxId);
+            return false;
+        } else {
+            if (String(oldPayout.memberId) === String(payout.memberId)) {
+                // console.log("found ", payout.trxId)
+                let DeleteEntry = await payOutModelGenerate.findByIdAndDelete(payout._id)
+                console.log("Success Delete trxId : ", DeleteEntry?.trxId)
+                return true
+            } else {
+                console.log("notmatch memberId both trxId :", trxId)
+                return false
+            }
+        }
+    }
+}
+
 export default function scheduleTask() {
     // FailedToSuccessPayout()
     // scheduleWayuPayOutCheckSecond()
@@ -1632,4 +1672,5 @@ export default function scheduleTask() {
     // scheduleFlipzikImpactPeek()
     // EwalletManuplation()
     // payOutDuplicateEntryRemove()
+    // payoutMigrateDuplicateEntry()
 }
