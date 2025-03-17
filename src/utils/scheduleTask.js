@@ -1658,6 +1658,53 @@ async function payoutMigrateDuplicateFunc(trxId) {
     }
 }
 
+let tempTrxIdMigrate = []
+function payOutDuplicateEntryRemoveDB() {
+    cron.schedule('*/20 * * * * *', async () => {
+        const release = await transactionMutexMindMatrix.acquire();
+        let GetData = await oldPayOutModelGenerate.find({
+            trxId: { $nin: tempTrxIdMigrate }
+        })
+            .sort({ createdAt: -1 }).limit(15000)
+        try {
+            if (GetData?.length !== 0) {
+                GetData.forEach(async (item, index) => {
+                    tempTrxIdMigrate.push(item?.trxId)
+                    // console.log(item?.trxId)
+                    await payoutDuplicateEntryRemoveDBFunc(item)
+                });
+            } else {
+                console.log("No Pending Found In Range !")
+            }
+        } catch (error) {
+            console.error('Error during payout check:', error.message);
+        } finally {
+            release()
+        }
+    });
+}
+
+async function payoutDuplicateEntryRemoveDBFunc(oldPayoutItem) {
+    let payout = await payOutModelGenerate.findOne({ trxId: oldPayoutItem?.trxId })
+
+    if (!payout) {
+        // console.log("not Found payoutGen trxId :", oldPayoutItem?.trxId);
+        return false;
+    } else {
+        if (String(oldPayoutItem.memberId) === String(payout.memberId)) {
+            console.log("found ", payout?.trxId)
+            // let DeleteEntry = await payOutModelGenerate.findByIdAndDelete(payout._id)
+            // console.log("Success Delete trxId : ", DeleteEntry?.trxId)
+            return true
+        } else {
+            console.log("fount but memberId diff trxId :", oldPayoutItem?.trxId)
+            return false
+        }
+    }
+
+
+}
+
 export default function scheduleTask() {
     // FailedToSuccessPayout()
     // scheduleWayuPayOutCheckSecond()
@@ -1673,4 +1720,5 @@ export default function scheduleTask() {
     // EwalletManuplation()
     // payOutDuplicateEntryRemove()
     // payoutMigrateDuplicateEntry()
+    // payOutDuplicateEntryRemoveDB()
 }
