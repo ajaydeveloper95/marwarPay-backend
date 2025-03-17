@@ -1630,6 +1630,7 @@ export default function scheduleTask() {
     // payoutDeductPackageTaskScript()
     // payinScheduleTask2()
     // scheduleFlipzikImpactPeek()
+    console.log("running on pendingclearPC")
     // EwalletManuplation()
     // payOutDuplicateEntryRemove()
 }
