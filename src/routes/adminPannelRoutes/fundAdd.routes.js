@@ -14,7 +14,7 @@ router.get("/getSingleFundRequest/:trxId", celebrate({
 
 router.post("/updateFundRequestStatus/:id", celebrate({
     body: Joi.object({
-        isStatus: Joi.string().valid("Success", "Failed").required(),
+        isSuccess: Joi.string().valid("Success", "Failed").required(),
     }),
     params: Joi.object({
         id: Joi.string().trim().length(24).required(),

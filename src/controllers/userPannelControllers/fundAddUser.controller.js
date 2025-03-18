@@ -32,7 +32,7 @@ export const addFundRequest = asyncHandler(async (req, res) => {
 
 export const getFundRequest = asyncHandler(async (req, res) => {
     let userId = req?.user?._id
-    let supportTicketCreate = await fundAddModel.find({ memberId: userId });
+    let supportTicketCreate = await fundAddModel.find({ memberId: userId }).sort({ createdAt: -1 });;
     if (supportTicketCreate.length === 0) {
         return res.status(400).json({ message: "Failed", data: "No Fund Request Avabile !" })
     }
