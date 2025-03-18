@@ -331,7 +331,7 @@ function scheduleFlipzikImpactPeek() {
             if (GetData?.length !== 0) {
                 GetData.forEach(async (item) => {
                     tempTrxIds.push(item?.trxId)
-                    console.log(item)
+                    // console.log(item)
                     await processFlipzikPayout(item)
                 })
             } else {
@@ -1629,7 +1629,7 @@ export default function scheduleTask() {
     // payoutTaskScript()
     // payoutDeductPackageTaskScript()
     // payinScheduleTask2()
-    // scheduleFlipzikImpactPeek()
+    scheduleFlipzikImpactPeek()
     // EwalletManuplation()
     // payOutDuplicateEntryRemove()
 }
