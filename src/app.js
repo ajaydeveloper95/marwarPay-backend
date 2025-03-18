@@ -12,6 +12,7 @@ import callBackRoutes from "./routes/adminPannelRoutes/callBack.routes.js";
 import walletRoutes from "./routes/adminPannelRoutes/wallet.routes.js";
 import utilityRoutes from "./routes/adminPannelRoutes/utility.routes.js";
 import supportRoutes from "./routes/adminPannelRoutes/support.routes.js";
+import fundAddRoutes from "./routes/adminPannelRoutes/fundAdd.routes.js";
 import ipWhiteListRoutes from "./routes/adminPannelRoutes/ipwhitelist.routes.js";
 import chargeBackRoutes from "./routes/adminPannelRoutes/chargeBack.routes.js";
 import userHandleUser from "./routes/userPannelRoutes/userHandleUser.routes.js";
@@ -19,6 +20,7 @@ import payInUserPannel from "./routes/userPannelRoutes/payInUser.routes.js";
 import payOutUserPannel from "./routes/userPannelRoutes/payOutUser.routes.js";
 import walletUserPannel from "./routes/userPannelRoutes/walletUser.routes.js";
 import supportUserPannel from "./routes/userPannelRoutes/supportPannel.routes.js";
+import fundAddUserPannel from "./routes/userPannelRoutes/fundAddUser.routes.js";
 import callBackUrl from "./routes/userPannelRoutes/callBackUser.routes.js";
 import { errors } from "celebrate";
 import { ApiError } from "./utils/ApiError.js";
@@ -109,6 +111,7 @@ app.use("/apiAdmin/v1/callBack/", callBackRoutes);
 app.use("/apiAdmin/v1/wallet/", walletRoutes);
 app.use("/apiAdmin/v1/utility/", utilityRoutes);
 app.use("/apiAdmin/v1/support/", supportRoutes);
+app.use("/apiAdmin/v1/fundAdd/", fundAddRoutes);
 app.use("/apiAdmin/v1/ipWhitelist/", ipWhiteListRoutes);
 app.use("/apiAdmin/v1/chargeBack/", chargeBackRoutes);
 
@@ -118,6 +121,7 @@ app.use("/apiUser/v1/payin/", payInUserPannel);
 app.use("/apiUser/v1/payout/", payOutUserPannel);
 app.use("/apiUser/v1/wallet/", walletUserPannel);
 app.use("/apiUser/v1/support/", supportUserPannel);
+app.use("/apiUser/v1/fundAdd/", fundAddUserPannel);
 app.use("/apiUser/v1/callBackUrl/", callBackUrl);
 
 // Catch-all for undefined routes
