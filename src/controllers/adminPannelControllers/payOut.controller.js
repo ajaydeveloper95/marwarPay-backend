@@ -1912,6 +1912,135 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                     }
                 }
             },
+            huntoodPayout: {
+                url: payOutApi?.apiURL,
+                headers: {
+                    "AuthKey": process.env.HUNTOOD_AUTH_KEY,
+                    "IPAddress": process.env.HUNTOOD_IP_ADDRESS,
+                    "Content-Type": "application/json"
+                },
+                data: {
+                    AccountMobile: mobileNumber,
+                    BenificiaryName: accountHolderName,
+                    BenificiaryAccount: accountNumber,
+                    BenificiaryIfsc: ifscCode,
+                    BankName: bankName,
+                    Amount: amount,
+                    TransactionId: trxId,
+                    Latitude: "26.848881",
+                    Longitude: "75.807320"
+                },
+                res: async (apiResponse) => {
+                    const { data, success } = apiResponse;
+                    if (true) {
+                        console.log(apiResponse, "api response data")
+                        return { message: "Success", data: apiResponse }
+                    }
+                    if (!success) {
+                        return { message: "Failed", data: `Bank server is down.` }
+                    }
+
+                    if (data?.status === "Success" && data?.master_status === "Success") {
+                        // If successful, store the payout data
+                        let payoutDataStore = {
+                            memberId: user?._id,
+                            amount: amount,
+                            chargeAmount: chargeAmount,
+                            finalAmount: finalAmountDeduct,
+                            bankRRN: data?.bank_reference_id,
+                            trxId: data?.merchant_order_id,
+                            optxId: data?.id,
+                            isSuccess: "Success"
+                        }
+                        await payOutModel.create(payoutDataStore);
+                        payOutModelGen.isSuccess = "Success"
+                        await payOutModelGen.save()
+
+                        // Call back to notify the user
+                        let callBackBody = {
+                            optxid: String(data?.id),
+                            status: "SUCCESS",
+                            txnid: data?.merchant_order_id,
+                            amount: String(amount),
+                            rrn: data?.bank_reference_id,
+                        }
+
+                        customCallBackPayoutUser(user?._id, callBackBody)
+
+                        let userRespSend = {
+                            statusCode: data?.status === "Success" ? 1 : 2 || 0,
+                            status: data?.status === "Success" ? 1 : 2 || 0,
+                            trxId: data?.merchant_order_id || 0,
+                            opt_msg: data?.acquirer_message || "null"
+                        }
+                        return new ApiResponse(200, userRespSend)
+                    } else if (data?.master_status === "Failed") {
+                        const release = await genPayoutMutex.acquire();
+                        const walletAddsession = await userDB.startSession();
+                        const transactionOptions = {
+                            readConcern: { level: 'linearizable' },
+                            writeConcern: { w: 'majority' },
+                            readPreference: { mode: 'primary' },
+                            maxTimeMS: 1500
+                        };
+                        // Handle failure: update wallet and store e-wallet transaction
+                        try {
+                            walletAddsession.startTransaction(transactionOptions);
+                            const opts = { walletAddsession };
+
+                            // update wallet 
+                            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct, EwalletFundLock: + finalAmountDeduct } }, {
+                                returnDocument: 'after',
+                                walletAddsession
+                            })
+
+                            let afterAmount = userWallet?.EwalletBalance
+                            let beforeAmount = userWallet?.EwalletBalance - finalAmountDeduct;
+
+                            // ewallet store 
+                            let walletModelDataStore = {
+                                memberId: user?._id,
+                                transactionType: "Cr.",
+                                transactionAmount: amount,
+                                beforeAmount: beforeAmount,
+                                chargeAmount: chargeAmount,
+                                afterAmount: afterAmount,
+                                description: `Successfully Cr. amount: ${Number(finalAmountDeduct)} with transaction Id: ${trxId}`,
+                                transactionStatus: "Success",
+                            }
+
+                            await walletModel.create([walletModelDataStore], opts)
+                            payOutModelGen.isSuccess = "Failed"
+                            await await payOutModelGen.save()
+                            // Commit the transaction
+                            await walletAddsession.commitTransaction();
+                            // console.log('Transaction committed successfully');
+                        } catch (error) {
+                            await walletAddsession.abortTransaction();
+                        }
+                        finally {
+                            walletAddsession.endSession();
+                            release()
+                        }
+
+                        let userRespSend2 = {
+                            statusCode: data?.status === "Failed" ? 0 : 2 || 0,
+                            status: data?.status === "Failed" ? 0 : 2 || 0,
+                            trxId: trxId || 0,
+                            opt_msg: data?.acquirer_message || "null"
+                        }
+                        return { message: "Failed", data: userRespSend2 }
+                    } else {
+                        let userRespSend2 = {
+                            statusCode: data?.status === "Pending" ? 2 : 0 || 0,
+                            status: data?.status === "Pending" ? 2 : 0 || 0,
+                            trxId: trxId || 0,
+                            opt_msg: data?.acquirer_message || "null"
+                        }
+                        return { message: "Failed", data: userRespSend2 }
+                    }
+                }
+            },
         };
 
         const apiResponse = await performPayoutApiCall(payOutApi, apiConfig);
@@ -1937,8 +2066,10 @@ export const performPayoutApiCall = async (payOutApi, apiConfig) => {
     if (!apiDetails) return null;
     try {
         const response = await axios.post(apiDetails.url, apiDetails.data, { headers: apiDetails.headers });
+        console.log(response, "respnose")
         return response?.data || null;
     } catch (error) {
+        console.log(error, "error")
         if (error?.response?.data?.fault?.detail?.errorcode === "steps.accesscontrol.IPDeniedAccess") {
             return "Ip validation Failed"
         }
