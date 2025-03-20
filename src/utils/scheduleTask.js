@@ -43,7 +43,7 @@ const loopMutex = new Mutex();
 
 let trxIdsToAvoid = []
 function scheduleWayuPayOutCheckSecond() {
-    cron.schedule('*/3 * * * *', async () => {
+    cron.schedule('*/30 * * * * *', async () => {
         const release = await transactionMutexImpactPeek.acquire();
         const threeHoursAgo = new Date();
         threeHoursAgo.setHours(threeHoursAgo.getHours() - 2)
@@ -53,7 +53,7 @@ function scheduleWayuPayOutCheckSecond() {
             createdAt: { $lt: threeHoursAgo },
             trxId: { $nin: trxIdsToAvoid }
         })
-            .sort({ createdAt: 1 }).limit(10)
+            .sort({ createdAt: 1 }).limit(40)
         try {
             if (GetData?.length !== 0) {
                 GetData.forEach(async (item) => {
@@ -1707,7 +1707,7 @@ async function payoutDuplicateEntryRemoveDBFunc(oldPayoutItem) {
 
 export default function scheduleTask() {
     // FailedToSuccessPayout()
-    // scheduleWayuPayOutCheckSecond()
+    scheduleWayuPayOutCheckSecond()
     // scheduleWayuPayOutCheckMindMatrix()
     // logsClearFunc()
     // migrateDataPayin()
@@ -1716,7 +1716,7 @@ export default function scheduleTask() {
     // payoutTaskScript()
     // payoutDeductPackageTaskScript()
     // payinScheduleTask2()
-    scheduleFlipzikImpactPeek()
+    // scheduleFlipzikImpactPeek()
     // EwalletManuplation()
     // payOutDuplicateEntryRemove()
     // payoutMigrateDuplicateEntry()
