@@ -348,19 +348,24 @@ export const userPaymentStatusCheckPayOUt = asyncHandler(async (req, res) => {
         return res.status(400).json({ message: "Failed", data: "User not valid or Inactive !" })
     }
 
-    let pack = await payOutModelGen.aggregate([{ $match: { $and: [{ trxId: trxId }, { memberId: new mongoose.Types.ObjectId(String(user[0]._id)) }] } }, { $lookup: { from: "payoutrecodes", localField: "trxId", foreignField: "trxId", as: "trxInfo" } }, {
+    let pipline = [{ $match: { $and: [{ trxId: trxId }, { memberId: new mongoose.Types.ObjectId(String(user[0]._id)) }] } }, { $lookup: { from: "payoutrecodes", localField: "trxId", foreignField: "trxId", as: "trxInfo" } }, {
         $unwind: {
             path: "$trxInfo",
             preserveNullAndEmptyArrays: true,
         },
     }, { $addFields: { rrn: "$trxInfo.bankRRN", chargeAmount: "$trxInfo.chargeAmount" } }, {
         $project: { "trxId": 1, "amount": 1, chargeAmount: 1, "accountHolderName": 1, "accountNumber": 1, "ifscCode": 1, "createdAt": 1, "_id": 0, "isSuccess": 1, rrn: 1 }
-    }]);
+    }]
+
+    let pack = await payOutModelGen.aggregate(pipline);
 
     if (!pack.length) {
-        return res.status(400).json({ message: "Failed", data: "No Transaction !" })
+        let pack2 = await oldPayOutModelGen.aggregate(pipline);
+        if (!pack2.length) {
+            return res.status(400).json({ message: "Failed", data: "No Transaction !" })
+        }
+        pack = pack.concat(pack2)
     }
 
-    if (pack.length)
-        res.status(200).json(new ApiResponse(200, pack[0]))
+    res.status(200).json(new ApiResponse(200, pack[0]))
 });
