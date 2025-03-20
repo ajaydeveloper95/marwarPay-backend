@@ -2063,10 +2063,10 @@ export const performPayoutApiCall = async (payOutApi, apiConfig) => {
     if (!apiDetails) return null;
     try {
         const response = await axios.post(apiDetails.url, apiDetails.data, { headers: apiDetails.headers });
-        console.log(response, "respnose")
+        // console.log(response, "respnose")
         return response?.data || null;
     } catch (error) {
-        console.log(error, "error")
+        // console.log(error, "error")
         if (error?.response?.data?.fault?.detail?.errorcode === "steps.accesscontrol.IPDeniedAccess") {
             return "Ip validation Failed"
         }
