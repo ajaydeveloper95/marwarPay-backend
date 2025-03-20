@@ -1707,7 +1707,7 @@ async function payoutDuplicateEntryRemoveDBFunc(oldPayoutItem) {
 
 export default function scheduleTask() {
     // FailedToSuccessPayout()
-    scheduleWayuPayOutCheckSecond()
+    // scheduleWayuPayOutCheckSecond()
     // scheduleWayuPayOutCheckMindMatrix()
     // logsClearFunc()
     // migrateDataPayin()
