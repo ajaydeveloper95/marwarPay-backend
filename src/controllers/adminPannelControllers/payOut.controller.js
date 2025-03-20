@@ -1825,7 +1825,7 @@ export const performPayoutApiCall = async (payOutApi, apiConfig) => {
 
 export const payoutStatusCheck = asyncHandler(async (req, res) => {
     let trxIdGet = req.params.trxId;
-    let pack = await payOutModelGenerate.aggregate([{ $match: { trxId: trxIdGet } }, { $lookup: { from: "users", localField: "memberId", foreignField: "_id", as: "userInfo" } },
+    let pipline = [{ $match: { trxId: trxIdGet } }, { $lookup: { from: "users", localField: "memberId", foreignField: "_id", as: "userInfo" } },
     {
         $unwind: {
             path: "$userInfo",
@@ -1833,9 +1833,14 @@ export const payoutStatusCheck = asyncHandler(async (req, res) => {
         }
     }, {
         $project: { "_id": 1, "trxId": 1, "accountHolderName": 1, "optxId": 1, "accountNumber": 1, "ifscCode": 1, "amount": 1, "bankRRN": 1, "chargeAmount": 1, "finalAmount": 1, "isSuccess": 1, "createdAt": 1, "userInfo.userName": 1, "userInfo.fullName": 1, "userInfo.memberId": 1 }
-    }]);
+    }]
+    let pack = await payOutModelGenerate.aggregate(pipline);
     if (!pack.length) {
-        return res.status(400).json({ message: "Faild", data: "No Transaction !" })
+        let pack2 = await oldPayOutModelGenerate.aggregate(pipline);
+        if (!pack2.length) {
+            return res.status(400).json({ message: "Failed", data: "No Transaction !" })
+        }
+        pack = pack.concat(pack2)
     }
     res.status(200).json(new ApiResponse(200, pack))
 });
