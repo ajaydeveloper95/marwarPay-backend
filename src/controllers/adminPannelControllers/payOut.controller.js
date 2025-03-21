@@ -3247,10 +3247,12 @@ export const huntoodCallbackResponse = asyncHandler(async (req, res) => {
 export const callBackCollectPay = asyncHandler(async (req, res) => {
     // const release = await flipzikMutex.acquire()
     try {
-        const Data = req.params;
-        console.log(Data, "insde data")
+        const Data = req.query;
+        console.log(Data, "data")
+        console.log(req.query, "req.query")
 
         const dataObject = { txnid: Data?.AgentTrasID, optxid: Data?.TransID, rrn: Data?.Bankrrn, status: Data?.Status }
+        console.log(dataObject, "callback iterate")
 
         let getDocoment = await payOutModelGenerate.findOne({ trxId: dataObject?.txnid });
 
