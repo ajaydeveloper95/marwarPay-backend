@@ -1707,7 +1707,7 @@ async function payoutDuplicateEntryRemoveDBFunc(oldPayoutItem) {
 
 export default function scheduleTask() {
     // FailedToSuccessPayout()
-    scheduleWayuPayOutCheckSecond()
+    // scheduleWayuPayOutCheckSecond()
     // scheduleWayuPayOutCheckMindMatrix()
     // logsClearFunc()
     // migrateDataPayin()
@@ -1716,7 +1716,7 @@ export default function scheduleTask() {
     // payoutTaskScript()
     // payoutDeductPackageTaskScript()
     // payinScheduleTask2()
-    // scheduleFlipzikImpactPeek()
+    scheduleFlipzikImpactPeek()
     // EwalletManuplation()
     // payOutDuplicateEntryRemove()
     // payoutMigrateDuplicateEntry()
