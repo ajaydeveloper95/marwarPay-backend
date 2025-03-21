@@ -2875,6 +2875,8 @@ export const flipzikCallbackImpactPeek = asyncHandler(async (req, res) => {
                 console.error("Transaction failed:", error);
                 return res.status(200).json({ message: "Error", error: error.message });
             }
+        } else {
+            return res.status(200).json({ message: "Failed", data: "Trx Not Found !" })
         }
     } catch (error) {
         return res.status(200).json({ message: "Failed", data: "Internel server Error !" })
@@ -3230,6 +3232,143 @@ export const huntoodCallbackResponse = asyncHandler(async (req, res) => {
                 // console.error("Transaction failed:", error);
                 return res.status(200).json({ message: "Error", error: error.message });
             }
+        }
+        else {
+            return res.status(200).json({ message: "Failed", data: "Trx Not Found !" })
+        }
+    } catch (error) {
+        return res.status(200).json({ message: "Failed", data: "Internel server Error !" })
+    }
+    // finally {
+    // release()
+    // }
+})
+
+export const callBackCollectPay = asyncHandler(async (req, res) => {
+    // const release = await flipzikMutex.acquire()
+    try {
+        const Data = req.params;
+        console.log(Data, "insde data")
+
+        const dataObject = { txnid: Data?.AgentTrasID, optxid: Data?.TransID, rrn: Data?.Bankrrn, status: Data?.Status }
+
+        let getDocoment = await payOutModelGenerate.findOne({ trxId: dataObject?.txnid });
+
+        if (getDocoment?.isSuccess === "Success" || getDocoment?.isSuccess === "Failed") {
+            return res.status(200).json({ message: "Failed", data: `Trx Status Already ${getDocoment?.isSuccess}` })
+        }
+
+        if (getDocoment && dataObject?.status.toLowerCase() === "success" && getDocoment?.isSuccess === "Pending") {
+            getDocoment.isSuccess = "Success"
+            await getDocoment.save();
+
+            let userInfo = await userDB.aggregate([{ $match: { _id: getDocoment?.memberId } }, { $lookup: { from: "payoutswitches", localField: "payOutApi", foreignField: "_id", as: "payOutApi" } }, {
+                $unwind: {
+                    path: "$payOutApi",
+                    preserveNullAndEmptyArrays: true,
+                }
+            }, {
+                $project: { "_id": 1, "userName": 1, "memberId": 1, "fullName": 1, "trxPassword": 1, "EwalletBalance": 1, "createdAt": 1, "payOutApi._id": 1, "payOutApi.apiName": 1, "payOutApi.apiURL": 1, "payOutApi.isActive": 1 }
+            }]);
+
+            let chargePaymentGatway = getDocoment?.gatwayCharge;
+            let mainAmount = getDocoment?.amount;
+
+            // let userWalletInfo = await userDB.findById(userInfo[0]?._id, "_id EwalletBalance");
+            // let beforeAmountUser = userWalletInfo.EwalletBalance;
+            let finalEwalletDeducted = mainAmount + chargePaymentGatway;
+
+            let payoutDataStore = {
+                memberId: getDocoment?.memberId,
+                amount: mainAmount,
+                chargeAmount: chargePaymentGatway,
+                finalAmount: finalEwalletDeducted,
+                bankRRN: dataObject?.rrn,
+                trxId: dataObject?.txnid,
+                optxId: dataObject?.optxid,
+                isSuccess: "Success"
+            }
+            await payOutModel.create(payoutDataStore)
+            let userCallBackResp = await callBackResponse.aggregate([{ $match: { memberId: userInfo[0]?._id } }]);
+            if (userCallBackResp.length !== 1) {
+                return res.status(200).json({ message: "Failed", data: "User have multiple callback Url or Not Found !" })
+            }
+            let payOutUserCallBackURL = userCallBackResp[0]?.payOutCallBackUrl;
+            const config = {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            };
+            let shareObjData = {
+                status: dataObject?.status,
+                txnid: dataObject?.txnid,
+                optxid: dataObject?.optxid,
+                amount: mainAmount,
+                rrn: dataObject?.rrn
+            }
+            try {
+                await axios.post(payOutUserCallBackURL, shareObjData, config)
+            } catch (error) {
+                null
+            }
+            return res.status(200).json(new ApiResponse(200, null, "Successfully !"))
+        } else if (dataObject.status == "FAILURE") {
+            const session = await mongoose.startSession();
+
+            try {
+                session.startTransaction();
+                let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(
+                    getDocoment?._id,
+                    { isSuccess: "Failed" },
+                    { new: true, session }
+                );
+
+                // console.log(payoutModelData?.trxId, "with failed");
+
+                let finalEwalletDeducted = payoutModelData?.afterChargeAmount;
+
+                // Update user wallet
+                let userWallet = await userDB.findByIdAndUpdate(
+                    payoutModelData?.memberId,
+                    { $inc: { EwalletBalance: +finalEwalletDeducted } },
+                    { returnDocument: "after", session }
+                );
+
+                if (!userWallet) {
+                    throw new Error("User wallet not found!");
+                }
+
+                let afterAmount = userWallet?.EwalletBalance;
+                let beforeAmount = userWallet?.EwalletBalance - finalEwalletDeducted;
+
+                let walletModelDataStore = {
+                    memberId: payoutModelData?.memberId,
+                    transactionType: "Cr.",
+                    transactionAmount: payoutModelData?.amount,
+                    beforeAmount: beforeAmount,
+                    chargeAmount: payoutModelData?.gatwayCharge,
+                    afterAmount: afterAmount,
+                    description: `Successfully Cr. amount: ${Number(finalEwalletDeducted)} with transaction Id: ${payoutModelData?.trxId}`,
+                    transactionStatus: "Success",
+                };
+
+                // Store eWallet transaction
+                await walletModel.create([walletModelDataStore], { session }); // Pass session
+
+                // Commit the transaction
+                await session.commitTransaction();
+                session.endSession();
+
+                return res.status(200).json({ message: "Failed", data: "Transaction processed successfully!" });
+            } catch (error) {
+
+                await session.abortTransaction();
+                session.endSession();
+                // console.error("Transaction failed:", error);
+                return res.status(200).json({ message: "Error", error: error.message });
+            }
+        } else {
+            return res.status(200).json({ message: "Failed", data: "Trx Not Found !" })
         }
     } catch (error) {
         return res.status(200).json({ message: "Failed", data: "Internel server Error !" })
