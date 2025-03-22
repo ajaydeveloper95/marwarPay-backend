@@ -567,6 +567,61 @@ function migrateDataPayin() {
     )
 }
 
+let idNotInclude = [
+    "seabird8927040",
+    "seabird8906626",
+    "seabird8906647",
+    "seabird8906606",
+    "seabird8906579",
+    "seabird8906601",
+    "seabird8906585",
+    "seabird8906574",
+    "seabird8879008",
+    "seabird8878927",
+    "seabird8859293",
+    "seabird8859993",
+    "seabird8859897",
+    "seabird8859865",
+    "seabird8859272",
+    "seabird8859017",
+    "seabird8859017",
+    "seabird8858964",
+    "seabird8858964",
+    "seabird8858917",
+    "seabird8858917",
+    "seabird8714692",
+    "seabird8713988",
+    "seabird8703372",
+    "seabird8713877",
+    "seabird8713877",
+    "seabird8713771",
+    "seabird8714092",
+    "seabird8715120",
+    "seabird8713713",
+    "seabird8714255",
+    "seabird8858799",
+    "seabird8701372",
+    "seabird8701098",
+    "seabird8858691",
+    "seabird8851357",
+    "seabird8851356",
+    "seabird8851337",
+    "seabird8851298",
+    "seabird8851262",
+    "seabird8851268",
+    "seabird8851265",
+    "seabird8850584",
+    "seabird8849979",
+    "seabird8849980",
+    "seabird8849855",
+    "seabird8849836",
+    "seabird8849807",
+    "seabird8848786",
+    "seabird8848463",
+    "seabird8844910",
+    "seabird8844877"
+]
+
 function migrateDataPayOut() {
     cron.schedule('*/20 * * * *', async () => {
         const release = await dataMigratePayoutMutex.acquire();
@@ -576,7 +631,7 @@ function migrateDataPayOut() {
             const threeHoursAgo = new Date();
             threeHoursAgo.setHours(threeHoursAgo.getHours() - 12)
 
-            const oldData = await payOutModelGenerate.find({ createdAt: { $lt: threeHoursAgo }, isSuccess: { $nin: ["Pending", "pending"] } }).sort({ createdAt: 1 }).limit(5000);
+            const oldData = await payOutModelGenerate.find({ createdAt: { $lt: threeHoursAgo }, isSuccess: { $nin: ["Pending", "pending"] }, trxId: { $nin: idNotInclude } }).sort({ createdAt: 1 }).limit(1);
 
             if (oldData.length > 0) {
                 const newData = oldData.map(item => ({
