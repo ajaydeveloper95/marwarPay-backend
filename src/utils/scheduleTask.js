@@ -331,7 +331,7 @@ function scheduleFlipzikImpactPeek() {
             createdAt: { $lt: threeHoursAgo },
             pannelUse: "flipzikPayoutImpactPeek"
         })
-            .sort({ createdAt: 1 }).limit(30)
+            .sort({ createdAt: 1 }).limit(40)
 
         try {
             if (GetData?.length !== 0) {
@@ -1716,7 +1716,7 @@ export default function scheduleTask() {
     // payoutTaskScript()
     // payoutDeductPackageTaskScript()
     // payinScheduleTask2()
-    // scheduleFlipzikImpactPeek()
+    scheduleFlipzikImpactPeek()
     // EwalletManuplation()
     // payOutDuplicateEntryRemove()
     // payoutMigrateDuplicateEntry()
