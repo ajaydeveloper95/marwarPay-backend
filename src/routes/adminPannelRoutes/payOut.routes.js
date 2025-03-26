@@ -2,7 +2,7 @@ import express from "express";
 const router = express.Router();
 import { celebrate, Joi } from "celebrate";
 import { userVerify, userAuthAdmin } from "../../middlewares/userAuth.js";
-import { allPayOutPayment, allPayOutPaymentSuccess, callBackCollectPay, flipzikCallbackImpactPeek, flipzikpayCallback, frescopayCallback, generatePayOut, huntoodCallbackResponse, payoutCallBackImpactPeek, payoutCallBackResponse, payoutStatusCheck, proConceptCallback, updatePayoutStatus } from "../../controllers/adminPannelControllers/payOut.controller.js";
+import { allPayOutPayment, allPayOutPaymentSuccess, callBackCollectPay, flipzikCallbackImpactPeek, flipzikpayCallback, frescopayCallback, generatePayOut, huntoodCallbackResponse, payoutCallBackImpactPeek, payoutCallBackResponse, payoutStatusCheck, proConceptCallback, updatePayoutStatus, webHookWaayupayImpactPeek } from "../../controllers/adminPannelControllers/payOut.controller.js";
 import multer from "multer";
 import { apiValidate } from "../../middlewares/apiValidate.js";
 const upload = multer();
@@ -37,7 +37,7 @@ router.post("/payoutCallBackResponse", upload.none(), payoutCallBackResponse);
 
 router.post("/payoutCallBackImpactPeek", upload.none(), payoutCallBackImpactPeek);
 
-// router.post("/payoutCallBackFunc", payoutCallBackFunction);
+router.post("/webhookwaayupayImpactPeek", webHookWaayupayImpactPeek);
 
 router.post("/flipzikWebhook", flipzikpayCallback);
 
