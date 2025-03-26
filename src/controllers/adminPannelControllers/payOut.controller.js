@@ -3438,8 +3438,7 @@ export const webHookWaayupayImpactPeek = asyncHandler(async (req, res) => {
     try {
         const Data = req.body;
 
-        const dataObject = { txnid: Data?.ClientOrderId, optxid: Data?.OrderId, rrn: Data?.UTR, status: Data?.Status }
-        console.log(dataObject, "callback iterate")
+        const dataObject = { txnid: Data?.ClientOrderId, optxid: Data?.OrderId, rrn: Data?.UTR, status: Data?.Status, statusCode: Data?.StatusCode }
 
         let getDocoment = await payOutModelGenerate.findOne({ trxId: dataObject?.txnid });
 
@@ -3447,7 +3446,7 @@ export const webHookWaayupayImpactPeek = asyncHandler(async (req, res) => {
             return res.status(200).json({ message: "Failed", data: `Trx Status Already ${getDocoment?.isSuccess}` })
         }
 
-        if (getDocoment && dataObject?.status == 1 && getDocoment?.isSuccess === "Pending") {
+        if (getDocoment && dataObject?.status == 1 && dataObject?.statusCode == 1 && getDocoment?.isSuccess === "Pending") {
             getDocoment.isSuccess = "Success"
             await getDocoment.save();
 
@@ -3463,8 +3462,6 @@ export const webHookWaayupayImpactPeek = asyncHandler(async (req, res) => {
             let chargePaymentGatway = getDocoment?.gatwayCharge;
             let mainAmount = getDocoment?.amount;
 
-            // let userWalletInfo = await userDB.findById(userInfo[0]?._id, "_id EwalletBalance");
-            // let beforeAmountUser = userWalletInfo.EwalletBalance;
             let finalEwalletDeducted = mainAmount + chargePaymentGatway;
 
             let payoutDataStore = {
@@ -3501,7 +3498,7 @@ export const webHookWaayupayImpactPeek = asyncHandler(async (req, res) => {
                 null
             }
             return res.status(200).json(new ApiResponse(200, null, "Successfully !"))
-        } else if (dataObject.status == "FAILURE") {
+        } else if (dataObject.status == 0 || dataObject.status == 4 && dataObject?.statusCode == 1) {
             const session = await mongoose.startSession();
 
             try {
@@ -3548,7 +3545,7 @@ export const webHookWaayupayImpactPeek = asyncHandler(async (req, res) => {
                 await session.commitTransaction();
                 session.endSession();
 
-                return res.status(200).json({ message: "Failed", data: "Transaction processed successfully!" });
+                return res.status(200).json({ message: "Success", data: "Transaction processed successfully!" });
             } catch (error) {
 
                 await session.abortTransaction();
@@ -3557,7 +3554,7 @@ export const webHookWaayupayImpactPeek = asyncHandler(async (req, res) => {
                 return res.status(200).json({ message: "Error", error: error.message });
             }
         } else {
-            return res.status(200).json({ message: "Failed", data: "Trx Not Found !" })
+            return res.status(200).json({ message: "Failed", data: "Trx Not Found or Pending !" })
         }
     } catch (error) {
         return res.status(200).json({ message: "Failed", data: "Internel server Error !" })
