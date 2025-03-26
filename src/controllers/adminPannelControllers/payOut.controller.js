@@ -3158,17 +3158,12 @@ export const frescopayCallback = asyncHandler(async (req, res) => {
     }
 })
 
-export const huntoodCallbackResponse = asyncHandler(async (req, res) => {
+export const jiffyCallbackResponse = asyncHandler(async (req, res) => {
     // const release = await flipzikMutex.acquire()
     try {
-        const { event, Data } = req.body
+        const Data = req.body
 
-        const dataObject = { txnid: Data?.APITransactionId, optxid: Data?.apiwalletTransactionId, rrn: Data?.RRN, status: Data?.Status, statusCode: Data?.statusCode }
-
-
-        if (event != "Payout") {
-            return res.status(200).json({ succes: "Failed", message: "Not Event Type Payout !" })
-        }
+        const dataObject = { txnid: Data?.order_id, optxid: Data?.order_id, rrn: Data?.utr_no, status: Data?.status }
 
         let getDocoment = await payOutModelGenerate.findOne({ trxId: dataObject?.txnid });
 
@@ -3192,8 +3187,6 @@ export const huntoodCallbackResponse = asyncHandler(async (req, res) => {
             let chargePaymentGatway = getDocoment?.gatwayCharge;
             let mainAmount = getDocoment?.amount;
 
-            // let userWalletInfo = await userDB.findById(userInfo[0]?._id, "_id EwalletBalance");
-            // let beforeAmountUser = userWalletInfo.EwalletBalance;
             let finalEwalletDeducted = mainAmount + chargePaymentGatway;
 
             let payoutDataStore = {
@@ -3225,12 +3218,12 @@ export const huntoodCallbackResponse = asyncHandler(async (req, res) => {
                 rrn: dataObject?.rrn
             }
             try {
-                await axios.post(payOutUserCallBackURL, shareObjData, config)
+                axios.post(payOutUserCallBackURL, shareObjData, config)
             } catch (error) {
                 null
             }
             return res.status(200).json(new ApiResponse(200, null, "Successfully !"))
-        } else if (dataObject.status == "FAILURE" || dataObject?.statusCode == "400") {
+        } else if (dataObject.status == "FAILURE") {
             const session = await mongoose.startSession();
 
             try {
