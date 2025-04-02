@@ -14,6 +14,7 @@ import { Mutex } from "async-mutex";
 import mongoose from "mongoose";
 import { Parser } from "json2csv";
 import crypto from "crypto";
+import { eWalletProducer, eWalletProducerStatus } from "../../jobs/producer/eWalletProducer.js";
 
 
 const genPayoutMutex = new Mutex();
@@ -3558,4 +3559,15 @@ export const webHookWaayupayImpactPeek = asyncHandler(async (req, res) => {
     // finally {
     // release()
     // }
+})
+
+export const forTestingPerpose = asyncHandler(async (req, res) => {
+    try {
+        const Data = req.body;
+        let a = eWalletProducer("vijay@gmail.com",100)
+        eWalletProducerStatus()
+        res.status(200).json({message:"Failed",data:"added successfully"})
+    } catch (error) {
+        return res.status(200).json({ message: "Failed", data: "Internel server Error !" })
+    }
 })

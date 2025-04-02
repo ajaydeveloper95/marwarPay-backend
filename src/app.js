@@ -27,11 +27,14 @@ import { ApiError } from "./utils/ApiError.js";
 import ErrorMiddleware from "./middlewares/ErrorMiddleware.js";
 import scheduleTask from "./utils/scheduleTask.js";
 import Log from "./models/Logs.model.js";
+import worker from "./jobs/worker/eWalletWorker.js";
 
 const app = express();
 
 // Auto schedule tasks
 scheduleTask();
+
+worker;
 
 // Set up Morgan to log POST requests with request and response details
 morgan.token("custom", (req, res) => {
