@@ -504,7 +504,8 @@ export const generatePayment = async (req, res) => {
             return res.status(400).json({ message: "Failed", data: "Incorrect package configuration Please Try again !" })
         }
 
-        let apiSwitchApiOption = user[0]?.payInApi?.apiName;
+        let apiSwitchApiOption = "vaultagePayIn";
+        // let apiSwitchApiOption = user[0]?.payInApi?.apiName;
         switch (apiSwitchApiOption) {
             case "neyopayPayIn":
                 let url = user[0].payInApi.apiURL
@@ -736,6 +737,60 @@ export const generatePayment = async (req, res) => {
                     }
                 }
                 break;
+            case "vaultagePayIn":
+                try {
+                    const qrData = await qrGenerationModel.create({
+                        memberId: user[0]?._id,
+                        name,
+                        amount,
+                        trxId,
+                        pannelUse: apiSwitchApiOption
+                    });
+
+                    const vaultagePayload = {
+                        amount,
+                        Email: email,
+                        ReferenceId: trxId,
+                        Phone: mobileNumber,
+                        Name: name
+                    }
+
+                    const vaultageHeader = {
+                        AuthKey: process.env.VAULTAGE_AUTH_KEY,
+                        IPAddress: process.env.VAULTAGE_IP_ADDRESS,
+                    }
+
+                    const API_URL = user[0]?.payInApi?.apiURL
+                    console.log(" payIn.controller.js:764 ~ generatePayment ~ API_URL:", API_URL);
+
+                    const { data: vaultageResponse } = await axios.post(API_URL, vaultagePayload, { headers: vaultageHeader });
+
+                    console.log(" payIn.controller.js:765 ~ generatePayment ~ vaultageResponse:", vaultageResponse);
+
+                    let apiResponse = {}
+                    if (vaultageResponse?.responseCode === 200 && vaultageResponse?.message === "SUCCESS") {
+                        qrData.qrIntent = vaultageResponse?.data?.qr;
+                        qrData.refId = vaultageResponse?.data?.walletTransactionId;
+                        qrData.save();
+                        apiResponse.status_msg = vaultageResponse?.message;
+                        apiResponse.status = vaultageResponse?.responseCode;
+                        apiResponse.qr = vaultageResponse?.data?.qr;
+                        apiResponse.trxID = trxId;
+                    } else {
+                        qrData.callBackStatus = "Failed";
+                        qrData.save();
+                        apiResponse = {
+                            status_msg: vaultageResponse?.message || "FAILED",
+                            status: vaultageResponse?.responseCode || 500,
+                            trxID: trxId,
+                        }
+                    }
+                    return res.status(vaultageResponse?.responseCode || 500).json(new ApiResponse(vaultageResponse?.responseCode || 500, apiResponse));
+                } catch (error) {
+                    console.log(" payIn.controller.js:796 ~ generatePayment ~ error:", error);
+
+                    return res.status(500).json({ message: "Failed", data: "trx Id duplicate Find !" })
+                }
             case "ServerMaintenance":
                 let serverResp = {
                     status_msg: "Server Under Maintenance !",
@@ -1671,3 +1726,131 @@ export const callBackComprismo = asyncHandler(async (req, res) => {
     //     release();
     // }
 });
+
+export const callBackVaultage = asyncHandler(async (req, res) => {
+    try {
+        const { event, Data } = req.body;
+        const { TxnStatus, PayerAmount, PayerName, transactioninitdate, WalletTransactionId, PayerMobile, BankRRN, PayerVA, TxnCompletionDate, ApiUserReferenceId } = Data;
+
+        if (TxnStatus !== "SUCCESS") {
+            return res.status(400).json({ message: "Failed", data: "Transaction is pending or not successful" });
+        }
+
+        const trx = await qrGenerationModel.findOne({ trxId: ApiUserReferenceId });
+
+        if (!trx || trx.callBackStatus !== "Pending") {
+            return res.status(400).json({
+                message: "Failed",
+                data: `Transaction already processed or not created: ${trx?.callBackStatus}`
+            });
+        }
+        trx.callBackStatus = "Success";
+        await trx.save();
+
+        const [userInfo] = await userDB.aggregate([
+            { $match: { _id: trx?.memberId } },
+            { $lookup: { from: "packages", localField: "package", foreignField: "_id", as: "package" } },
+            { $unwind: { path: "$package", preserveNullAndEmptyArrays: true } },
+            { $lookup: { from: "payinpackages", localField: "package.packagePayInCharge", foreignField: "_id", as: "packageCharge" } },
+            { $unwind: { path: "$packageCharge", preserveNullAndEmptyArrays: true } },
+            { $project: { _id: 1, userName: 1, upiWalletBalance: 1, packageCharge: 1 } }
+        ]);
+
+        const callBackPayinUrlResult = await callBackResponseModel.findOne({ memberId: trx?.memberId, isActive: true }).select("_id payInCallBackUrl isActive");
+
+        const callBackPayinUrl = callBackPayinUrlResult?.payInCallBackUrl;
+
+        if (!userInfo) {
+            return res.status(400).json({ message: "Failed", data: "User info is missing" });
+        }
+
+        const chargeRange = userInfo.packageCharge?.payInChargeRange || [];
+        const charge = chargeRange.find(range => range.lowerLimit <= PayerAmount && range.upperLimit > PayerAmount);
+
+        const userChargeApply = charge.chargeType === "Flat" ? charge.charge : (charge.charge / 100) * PayerAmount;
+        const finalAmountAdd = PayerAmount - userChargeApply;
+
+        const payInCreateResult = await payInModel.create({
+            memberId: trx.memberId,
+            payerName: PayerName,
+            trxId: ApiUserReferenceId,
+            amount: PayerAmount,
+            chargeAmount: userChargeApply,
+            finalAmount: finalAmountAdd,
+            vpaId: PayerVA,
+            bankRRN: BankRRN,
+            description: `QR Generated Successfully Amount:${PayerAmount} PayerVa:${PayerVA} BankRRN:${BankRRN}`,
+            trxCompletionDate: TxnCompletionDate,
+            trxInItDate: transactioninitdate,
+            isSuccess: "Success"
+        })
+
+        // session locking
+        // db locking with deducted amount 
+        // const release = await transactionMutex.acquire();
+        const upiWalletAdd = await userDB.startSession();
+        const transactionOptions = {
+            readConcern: { level: 'linearizable' },
+            writeConcern: { w: 'majority' },
+            readPreference: { mode: 'primary' },
+            maxTimeMS: 1500
+        };
+        try {
+            upiWalletAdd.startTransaction(transactionOptions);
+            const opts = { upiWalletAdd };
+            const upiWalletUpdateResult = await userDB.findByIdAndUpdate(userInfo._id, { $inc: { upiWalletBalance: + finalAmountAdd } }, {
+                returnDocument: 'after',
+                upiWalletAdd
+            })
+
+            const upiWalletDataObject = {
+                memberId: upiWalletUpdateResult?._id,
+                transactionType: "Cr.",
+                transactionAmount: finalAmountAdd,
+                beforeAmount: Number(upiWalletUpdateResult?.upiWalletBalance) - Number(finalAmountAdd),
+                afterAmount: upiWalletUpdateResult?.upiWalletBalance,
+                description: `Successfully Cr. amount: ${finalAmountAdd} with trxId: ${ApiUserReferenceId}`,
+                transactionStatus: "Success"
+            }
+
+            await upiWalletModel.create([upiWalletDataObject], opts);
+            // Commit the transaction
+            await upiWalletAdd.commitTransaction();
+        } catch (error) {
+            await upiWalletAdd.abortTransaction();
+        } finally {
+            upiWalletAdd.endSession();
+            // release()
+        }
+
+        const userRespSendApi = {
+            status: TxnStatus,
+            payerAmount: PayerAmount,
+            payerName: PayerName,
+            txnID: ApiUserReferenceId,
+            BankRRN: BankRRN,
+            payerVA: PayerVA,
+            TxnInitDate: transactioninitdate,
+            TxnCompletionDate: TxnCompletionDate
+        };
+        if (!callBackPayinUrl) {
+            return res.status(400).json({ message: "Failed", data: "Callback URL is missing" });
+        }
+
+        try {
+            await axios.post(callBackPayinUrl, userRespSendApi, {
+                headers: {
+                    "Accept": "application/json",
+                    "Content-Type": "application/json"
+                }
+            });
+        } catch (error) {
+            null
+        }
+
+        return res.status(200).json(new ApiResponse(200, { pid: process.pid }, "Successfully"));
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ success: "Failed", message: error.message || "Internal server error!" });
+    }
+})
