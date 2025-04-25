@@ -504,8 +504,8 @@ export const generatePayment = async (req, res) => {
             return res.status(400).json({ message: "Failed", data: "Incorrect package configuration Please Try again !" })
         }
 
-        let apiSwitchApiOption = "vaultagePayIn";
-        // let apiSwitchApiOption = user[0]?.payInApi?.apiName;
+        // let apiSwitchApiOption = "vaultagePayIn";
+        let apiSwitchApiOption = user[0]?.payInApi?.apiName;
         switch (apiSwitchApiOption) {
             case "neyopayPayIn":
                 let url = user[0].payInApi.apiURL
