@@ -1824,7 +1824,7 @@ export const callBackVaultage = asyncHandler(async (req, res) => {
         }
 
         const userRespSendApi = {
-            status: TxnStatus,
+            status: TxnStatus === "SUCCESS" ? 200 : 400,
             payerAmount: PayerAmount,
             payerName: PayerName,
             txnID: ApiUserReferenceId,
