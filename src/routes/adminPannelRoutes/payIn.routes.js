@@ -1,5 +1,5 @@
 import express from "express";
-import { allGeneratedPayment, generatePayment, paymentStatusCheck, paymentStatusUpdate, callBackResponse, allSuccessPayment, rezorPayCallback, iSmartPayCallback, callBackProconcept, callBackComprismo, callBackVaultage } from "../../controllers/adminPannelControllers/payIn.controller.js";
+import { allGeneratedPayment, generatePayment, paymentStatusCheck, paymentStatusUpdate, callBackResponse, allSuccessPayment, rezorPayCallback, iSmartPayCallback, callBackProconcept, callBackComprismo, callBackVaultage, callBackSambhavPay } from "../../controllers/adminPannelControllers/payIn.controller.js";
 const router = express.Router();
 import { celebrate, Joi } from "celebrate";
 import { userVerify, userAuthAdmin } from "../../middlewares/userAuth.js";
@@ -42,6 +42,7 @@ router.post("/callBack", rezorPayCallback);
 router.post("/iSmartPayWebhook", iSmartPayCallback);
 router.post("/callBackProconcept", callBackProconcept);
 router.post("/callBackComprismo", callBackComprismo);
-router.post("/vaultageCallBack", callBackVaultage)
+router.post("/vaultageCallBack", callBackVaultage);
+router.post("/sambhavpayCallback", callBackSambhavPay);
 
 export default router;
