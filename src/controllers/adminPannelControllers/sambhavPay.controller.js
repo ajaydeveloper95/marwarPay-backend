@@ -1,11 +1,11 @@
 import CryptoJS from "crypto-js";
 
 class SambhavPay {
-    constructor() {
+    constructor({ api_url }) {
         this._openssl_cipher_name = "aes-256-cbc";
         this._key_len = 35;
         this._sp_salt_key = "Asdf@1234";
-        this._PG_URL = "https://pg.sambhavpay.com/api/seamless/txnReq";
+        this._PG_URL = api_url;
         this._PGStatusCheck_URL = "https://pg.sambhavpay.com/apis/seamless/txnStatus";
         // this._PGCancel_URL = "";
         // this._PGRefund_URL = "";

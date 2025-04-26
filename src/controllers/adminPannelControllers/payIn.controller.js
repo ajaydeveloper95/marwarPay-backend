@@ -798,17 +798,17 @@ export const generatePayment = async (req, res) => {
                         trxId,
                         pannelUse: apiSwitchApiOption
                     });
+                    const api_url = user[0]?.payInApi?.apiURL
                     const sambhavPayload = {
                         orderNo: trxId,
                         amount: String(amount),
                         emailId: email,
                         mobileNo: mobileNumber,
-                        customerName: name
+                        customerName: name,
+                        api_url
                     }
-                    const API_URL = user[0]?.payInApi?.apiURL
 
                     const response = await sambhavPayin(sambhavPayload);
-                    console.log(" payIn.controller.js:811 ~ generatePayment ~ response:", response);
 
                     let apiResponse = {}
                     if (response?.status === false) {
@@ -2022,8 +2022,8 @@ export const callBackSambhavPay = asyncHandler(async (req, res) => {
 
 });
 
-async function sambhavPayin({ orderNo, amount, currency = "INR", txnReqType = "S", emailId, mobileNo, transactionMethod = "UPI", customerName, optional1 = "intent" }) {
-    const sp = new SambhavPay();
+async function sambhavPayin({ orderNo, amount, currency = "INR", txnReqType = "S", emailId, mobileNo, transactionMethod = "UPI", customerName, optional1 = "intent", api_url }) {
+    const sp = new SambhavPay({ api_url });
     const response = await sp.initiatePayment({
         mid: process.env.SAMBHAVPAY_MID,
         secretKey: process.env.SAMBHAVPAY_SECRET_KEY,
@@ -2062,11 +2062,11 @@ async function sambhavPayin({ orderNo, amount, currency = "INR", txnReqType = "S
             message: "Transaction Failed",
         }
     } else {
-        return respHandler(response);
+        return respHandler(response, api_url);
     }
 }
 
-async function respHandler(jsonData, res) {
+async function respHandler(jsonData, api_url) {
     const responseData = jsonData;
 
     if (responseData?.respCode == 1) {
@@ -2079,7 +2079,7 @@ async function respHandler(jsonData, res) {
         const secretKey = process.env.SAMBHAVPAY_SECRET_KEY;
         const saltKey = process.env.SAMBHAVPAY_SALT_KEY;
 
-        const sp = new SambhavPay();
+        const sp = new SambhavPay({ api_url });
         sp._mid = mid;
         sp._secretKey = secretKey;
         sp._saltKey = saltKey;
