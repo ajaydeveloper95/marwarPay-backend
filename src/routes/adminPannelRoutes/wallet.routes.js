@@ -2,9 +2,9 @@ import express from "express";
 import { userVerify } from "../../middlewares/userAuth.js";
 const router = express.Router();
 import { celebrate, Joi } from "celebrate";
-import { eWalletFundCredit, eWalletFundDebit, getAllTransactionEwallet, getAllTransactionUpi, getSettlementAmountAll, getSettlementAmountOne, getTransactionStatus, upiToEwallet } from "../../controllers/adminPannelControllers/wallet.controller.js";
+import { eWalletFundCredit, eWalletFundDebit, EwalletToHoldingFund, getAllTransactionEwallet, getAllTransactionUpi, getSettlementAmountAll, getSettlementAmountOne, getTransactionStatus, HoldingFundToEwallet, upiToEwallet } from "../../controllers/adminPannelControllers/wallet.controller.js";
 
-router.get("/getAllTransactionUpi",  getAllTransactionUpi);
+router.get("/getAllTransactionUpi", getAllTransactionUpi);
 
 router.get("/getAllTransactionEwallet", userVerify, getAllTransactionEwallet);
 
@@ -22,6 +22,24 @@ router.post("/upiToEwallet/:id", celebrate({
         id: Joi.string().trim().length(24).required(),
     })
 }), userVerify, upiToEwallet);
+
+router.post("/EwalletToHoldingFund/:id", celebrate({
+    body: Joi.object({
+        transactionAmount: Joi.number().required(),
+    }),
+    params: Joi.object({
+        id: Joi.string().trim().length(24).required(),
+    })
+}), userVerify, EwalletToHoldingFund);
+
+router.post("/HoldingFundToEwallet/:id", celebrate({
+    body: Joi.object({
+        transactionAmount: Joi.number().required(),
+    }),
+    params: Joi.object({
+        id: Joi.string().trim().length(24).required(),
+    })
+}), userVerify, HoldingFundToEwallet);
 
 router.post("/eWalletFundCredit/:id", celebrate({
     body: Joi.object({
