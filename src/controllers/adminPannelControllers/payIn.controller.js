@@ -783,7 +783,7 @@ export const generatePayment = async (req, res) => {
                             trxID: trxId,
                         }
                     }
-                    return res.status(vaultageResponse?.responseCode || 500).json(new ApiResponse(vaultageResponse?.responseCode || 500, apiResponse));
+                    return res.status(vaultageResponse?.responseCode || 500).json(new ApiResponse(vaultageResponse?.responseCode || 500, apiResponse, undefined, vaultageResponse?.message === "SUCCESS" ? "Success" : "Failed"));
                 } catch (error) {
                     console.log(" payIn.controller.js:796 ~ generatePayment ~ error:", error);
 
@@ -828,7 +828,7 @@ export const generatePayment = async (req, res) => {
                         apiResponse.qr = response?.upiString;
                         apiResponse.trxID = trxId;
                     }
-                    return res.status(apiResponse.status || 500).json(new ApiResponse(apiResponse.status || 500, apiResponse));
+                    return res.status(apiResponse.status || 500).json(new ApiResponse(apiResponse.status || 500, apiResponse, undefined, response?.respMessage === "FAILURE" ? "Failed" : "Success"));
                 } catch (error) {
                     console.log(" payIn.controller.js:796 ~ generatePayment ~ error:", error);
                     return res.status(500).json({ message: "Failed", data: "trx Id duplicate Find !" })
