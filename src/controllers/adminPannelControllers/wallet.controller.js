@@ -335,6 +335,76 @@ export const upiToEwallet = asyncHandler(async (req, res) => {
     }
 });
 
+export const EwalletToHoldingFund = asyncHandler(async (req, res) => {
+    let query = req?.params?.id;
+    const { transactionAmount } = req.body;
+    let userData = await userDB.findById(query, "_id userName memberId upiWalletBalance EwalletBalance HoldingAmount")
+    if (!userData) {
+        return res.status(404).json({ message: "Failed", data: "User not Found !" })
+    }
+
+    // Ewallet To holding
+    if (transactionAmount <= userData?.EwalletBalance) {
+
+        let beforeAmountEwallet = userData?.EwalletBalance;
+        userData.HoldingAmount += transactionAmount;
+        userData.EwalletBalance -= transactionAmount;
+        await userData.save();
+
+        let trxStoreEwallet = {
+            memberId: userData?._id,
+            transactionType: "Dr.",
+            transactionAmount: transactionAmount,
+            beforeAmount: beforeAmountEwallet,
+            afterAmount: userData?.EwalletBalance,
+            chargeAmount: 0,
+            description: `#Hold Amount Successfully Dr. amount: ${transactionAmount}`,
+            transactionStatus: "Success",
+        }
+
+        let eWalletStore = await eWalletModel.create(trxStoreEwallet);
+
+        res.status(200).json(new ApiResponse(200, eWalletStore))
+    } else {
+        res.status(400).json({ message: "Failed", data: `Transaction amount grather then Ewallet Wallet Amount : ${userData?.EwalletBalance} !` })
+    }
+});
+
+export const HoldingFundToEwallet = asyncHandler(async (req, res) => {
+    let query = req?.params?.id;
+    const { transactionAmount } = req.body;
+    let userData = await userDB.findById(query, "_id userName memberId upiWalletBalance EwalletBalance HoldingAmount")
+    if (!userData) {
+        return res.status(404).json({ message: "Failed", data: "User not Found !" })
+    }
+
+    // Holding To Ewallet
+    if (transactionAmount <= userData?.HoldingAmount) {
+
+        let beforeAmountEwallet = userData?.EwalletBalance;
+        userData.HoldingAmount -= transactionAmount;
+        userData.EwalletBalance += transactionAmount;
+        await userData.save();
+
+        let trxStoreEwallet = {
+            memberId: userData?._id,
+            transactionType: "Cr.",
+            transactionAmount: transactionAmount,
+            beforeAmount: beforeAmountEwallet,
+            afterAmount: userData.EwalletBalance,
+            chargeAmount: 0,
+            description: `#Hold Amount Successfully Cr. amount: ${transactionAmount}`,
+            transactionStatus: "Success",
+        }
+
+        let eWalletStore = await eWalletModel.create(trxStoreEwallet);
+
+        res.status(200).json(new ApiResponse(200, eWalletStore))
+    } else {
+        res.status(400).json({ message: "Failed", data: `Transaction amount grather then holding Amount : ${userData?.HoldingAmount} !` })
+    }
+});
+
 export const eWalletFundCredit = asyncHandler(async (req, res) => {
     let query = req.params.id;
     const { transactionAmount, transactionType, description } = req.body;

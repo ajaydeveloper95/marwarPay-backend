@@ -52,6 +52,7 @@ router.post("/updateUser/:id", [celebrate({
         minWalletBalance: Joi.number().optional(),
         upiWalletBalance: Joi.number().optional(),
         EwalletBalance: Joi.number().optional(),
+        HoldingAmount: Joi.number().optional(),
         EwalletFundLock: Joi.number().optional(),
         isActive: Joi.boolean().optional(),
     }),
