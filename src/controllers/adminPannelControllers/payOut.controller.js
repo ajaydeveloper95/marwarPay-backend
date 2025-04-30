@@ -2176,108 +2176,90 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                         return new ApiResponse(200, userRespSend);
                     }
                 }
-                // res: async (apiResponse) => {
+            },
+            vaultagePayoutApi: {
+                url: payOutApi?.apiURL,
+                data: {
+                    BenificiaryAccount: accountNumber,
+                    BenificiaryIfsc: ifscCode,
+                    Amount: amount,
+                    TransactionId: trxId,
+                    BenificiaryName: accountHolderName,
+                    Latitude: "26.949501",
+                    Longitude: "75.710884"
+                },
+                headers: {
+                    AuthKey: process.env.VAULTAGE_AUTH_KEY,
+                    IPAddress: process.env.VAULTAGE_IP_ADDRESS
+                },
+                res: async (apiResponse) => {
+                    const { success, responseCode, message, data } = apiResponse;
+                    if (responseCode === 200 && success && data.rrn) {
+                        let userRespSend = {
+                            statusCode: 1,
+                            status: 1,
+                            trxId: trxId,
+                            opt_msg: message
 
-                //     if (status === "SUCCESS" && Array.isArray(errors) && errors.length === 0) {
-                //         // If successful, store the payout data
-                //         let payoutDataStore = {
-                //             memberId: user?._id,
-                //             amount: amount,
-                //             chargeAmount: chargeAmount,
-                //             finalAmount: finalAmountDeduct,
-                //             bankRRN: data?.rrn,
-                //             trxId: data?.apiTransactionId,
-                //             optxId: data?.apiWalletTransactionId,
-                //             isSuccess: "Success"
-                //         }
-                //         // await payOutModel.create(payoutDataStore);
-                //         payOutModelGen.isSuccess = "Success"
-                //         await payOutModelGen.save()
+                        }
+                        return { message: "Success", data: userRespSend }
+                    } else {
+                        const release = await genPayoutMutex.acquire();
+                        const walletAddsession = await userDB.startSession();
+                        const transactionOptions = {
+                            readConcern: { level: 'linearizable' },
+                            writeConcern: { w: 'majority' },
+                            readPreference: { mode: 'primary' },
+                            maxTimeMS: 1500
+                        };
+                        try {
+                            walletAddsession.startTransaction(transactionOptions);
+                            const opts = { walletAddsession };
 
-                //         // Call back to notify the user
-                //         let callBackBody = {
-                //             optxid: String(data?.apiWalletTransactionId),
-                //             status: "SUCCESS",
-                //             txnid: data?.apiTransactionId,
-                //             amount: String(amount),
-                //             rrn: data?.rrn,
-                //         }
+                            // update wallet 
+                            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct, EwalletFundLock: + finalAmountDeduct } }, {
+                                returnDocument: 'after',
+                                walletAddsession
+                            })
 
-                //         customCallBackPayoutUser(user?._id, callBackBody)
+                            let afterAmount = userWallet?.EwalletBalance
+                            let beforeAmount = userWallet?.EwalletBalance - finalAmountDeduct;
 
-                //         let userRespSend = {
-                //             statusCode: data?.status === "SUCCESS" ? 1 : 2 || 0,
-                //             status: data?.status === "SUCCESS" ? 1 : 2 || 0,
-                //             trxId: data?.apiTransactionId || 0,
-                //             opt_msg: data?.apiWalletTransactionId || "null"
-                //         }
-                //         return new ApiResponse(200, userRespSend)
-                //     } else if (data?.status === "FAILURE" && data?.statusCode == "400") {
-                //         const release = await genPayoutMutex.acquire();
-                //         const walletAddsession = await userDB.startSession();
-                //         const transactionOptions = {
-                //             readConcern: { level: 'linearizable' },
-                //             writeConcern: { w: 'majority' },
-                //             readPreference: { mode: 'primary' },
-                //             maxTimeMS: 1500
-                //         };
-                //         // Handle failure: update wallet and store e-wallet transaction
-                //         try {
-                //             walletAddsession.startTransaction(transactionOptions);
-                //             const opts = { walletAddsession };
+                            // ewallet store 
+                            let walletModelDataStore = {
+                                memberId: user?._id,
+                                transactionType: "Cr.",
+                                transactionAmount: amount,
+                                beforeAmount: beforeAmount,
+                                chargeAmount: chargeAmount,
+                                afterAmount: afterAmount,
+                                description: `Successfully Cr. amount: ${Number(finalAmountDeduct)} with transaction Id: ${trxId}`,
+                                transactionStatus: "Success",
+                            }
 
-                //             // update wallet 
-                //             let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct, EwalletFundLock: + finalAmountDeduct } }, {
-                //                 returnDocument: 'after',
-                //                 walletAddsession
-                //             })
-
-                //             let afterAmount = userWallet?.EwalletBalance
-                //             let beforeAmount = userWallet?.EwalletBalance - finalAmountDeduct;
-
-                //             // ewallet store 
-                //             let walletModelDataStore = {
-                //                 memberId: user?._id,
-                //                 transactionType: "Cr.",
-                //                 transactionAmount: amount,
-                //                 beforeAmount: beforeAmount,
-                //                 chargeAmount: chargeAmount,
-                //                 afterAmount: afterAmount,
-                //                 description: `Successfully Cr. amount: ${Number(finalAmountDeduct)} with transaction Id: ${trxId}`,
-                //                 transactionStatus: "Success",
-                //             }
-
-                //             await walletModel.create([walletModelDataStore], opts)
-                //             payOutModelGen.isSuccess = "Failed"
-                //             await await payOutModelGen.save()
-                //             // Commit the transaction
-                //             await walletAddsession.commitTransaction();
-                //             // console.log('Transaction committed successfully');
-                //         } catch (error) {
-                //             await walletAddsession.abortTransaction();
-                //         }
-                //         finally {
-                //             walletAddsession.endSession();
-                //             release()
-                //         }
-
-                //         let userRespSend2 = {
-                //             statusCode: data?.statusCode == "400" ? 0 : 2 || 0,
-                //             status: data?.status === "FAILURE" ? 0 : 2 || 0,
-                //             trxId: trxId || 0,
-                //             opt_msg: data?.message || "null"
-                //         }
-                //         return { message: "Failed", data: userRespSend2 }
-                //     } else {
-                //         let userRespSend2 = {
-                //             statusCode: data?.statusCode == "201" ? 2 : 0 || 0,
-                //             status: data?.status === "PENDING" ? 2 : 0 || 0,
-                //             trxId: trxId || 0,
-                //             opt_msg: data?.message || "null"
-                //         }
-                //         return new ApiResponse(200, userRespSend2)
-                //     }
-                // }
+                            await walletModel.create([walletModelDataStore], opts)
+                            // Commit the transaction
+                            await walletAddsession.commitTransaction();
+                            // console.log('Transaction committed successfully');
+                            payOutModelGen.isSuccess = "Failed"
+                            await payOutModelGen.save()
+                        } catch (error) {
+                            console.log("inside error:", error.message)
+                            await walletAddsession.abortTransaction();
+                        }
+                        finally {
+                            walletAddsession.endSession();
+                            release()
+                        }
+                        let userRespSend = {
+                            statusCode: responseCode,
+                            status: 0,
+                            trxId: trxId,
+                            opt_msg: message || "null"
+                        }
+                        return { message: "Failed", data: userRespSend }
+                    }
+                }
             },
         };
 
@@ -2290,8 +2272,6 @@ export const generatePayOut = asyncHandler(async (req, res) => {
         const response = await apiConfig[payOutApi.apiName]?.res(apiResponse)
         return res.status(200).json(response);
     } catch (error) {
-        console.log(" payOut.controller.js:2293 ~ generatePayOut ~ error:", error);
-
         const errorMsg = error.code === 11000 ? "Duplicate key error!" : error.message;
         return res.status(400).json({ message: "Failed", data: errorMsg });
     }
@@ -2321,14 +2301,14 @@ export const performPayoutApiCall = async (payOutApi, apiConfig) => {
             }
         }
         apiDetails ??= apiConfig[payOutApi?.apiName];
-        console.log(" payOut.controller.js:2319 ~ performPayoutApiCall ~ apiConfig[payOutApi?.apiName]:", apiConfig[payOutApi?.apiName]);
-
         if (!apiDetails) return null;
 
         const response = await axios.post(apiDetails.url, apiDetails.data, { headers: apiDetails.headers });
         // console.log(response, "respnose")
         return response?.data || null;
     } catch (error) {
+        console.log(" payOut.controller.js:2314 ~ performPayoutApiCall ~ error:", error);
+
         // console.log(error, "error")
         if (error?.response?.data?.fault?.detail?.errorcode === "steps.accesscontrol.IPDeniedAccess") {
             return "Ip validation Failed"
