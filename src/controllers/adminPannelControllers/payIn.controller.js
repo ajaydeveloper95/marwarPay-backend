@@ -15,6 +15,8 @@ import { Parser } from 'json2csv';
 // import { validatePaymentVerification } from "razorpay/dist/utils/razorpay-utils.js";
 import oldQrGenerationModel from "../../models/oldQrGeneration.model.js";
 import SambhavPay from "./sambhavPay.controller.js";
+import packageModel from "../../models/package.model.js";
+import payInChargeModel from "../../models/payInCharge.model.js";
 
 const transactionMutex = new Mutex();
 // const generatePayinMutex = new Mutex();
@@ -505,6 +507,34 @@ export const generatePayment = async (req, res) => {
             return res.status(400).json({ message: "Failed", data: "Incorrect package configuration Please Try again !" })
         }
 
+        const userPackageId = user[0]?.package?.toString();
+        if (!userPackageId) {
+            return res.status(400).json({ message: "Failed", data: "User package not found!" });
+        }
+        
+        const pack = await packageModel.findById(userPackageId).lean();
+        if (!pack) {
+            return res.status(400).json({ message: "Failed", data: "Package not found, please connect to admin!" });
+        }
+
+        const packagePayInChargeId = pack.packagePayInCharge?.toString();
+        if (!packagePayInChargeId) {
+            return res.status(400).json({ message: "Failed", data: "Payin package not found, please connect to admin!" });
+        }
+
+        const payinPackage = await payInChargeModel.findById(packagePayInChargeId).lean();
+        if (!payinPackage) {
+            return res.status(400).json({ message: "Failed", data: "Payin package not found, please connect to admin!" });
+        }
+
+        const charge = payinPackage.payInChargeRange?.find(range =>
+            amount >= range.lowerLimit && amount < range.upperLimit
+        );
+
+        if (!charge) {
+            return res.status(400).json({ message: "Failed", data: "Charge not found for the given amount, limit exceed" });
+        }
+
         // let apiSwitchApiOption = "vaultagePayIn";
         let apiSwitchApiOption = user[0]?.payInApi?.apiName;
         switch (apiSwitchApiOption) {
@@ -915,6 +945,8 @@ export const generatePayment = async (req, res) => {
                 return res.status(400).json({ message: "Failed", data: dataApiResponse })
         }
     } catch (error) {
+        console.log(" payIn.controller.js:943 ~ generatePayment ~ error:", error);
+
         // console.log("error==>", error.message);
         return res.status(400).json({ message: "Failed", data: "Server Side Problem !" })
     }
