@@ -4,6 +4,7 @@ const router = express.Router();
 import { celebrate, Joi } from "celebrate";
 import { userVerify, userAuthAdmin } from "../../middlewares/userAuth.js";
 import { apiValidate } from "../../middlewares/apiValidate.js";
+import { vaultagePayoutCallback } from "../../controllers/adminPannelControllers/payOut.controller.js";
 
 router.get("/allPaymentGenerated", userVerify, allGeneratedPayment);
 
@@ -42,7 +43,14 @@ router.post("/callBack", rezorPayCallback);
 router.post("/iSmartPayWebhook", iSmartPayCallback);
 router.post("/callBackProconcept", callBackProconcept);
 router.post("/callBackComprismo", callBackComprismo);
-router.post("/vaultageCallBack", callBackVaultage);
+router.post("/vaultageCallBack", (req, res, next) => {
+    const { event } = req.body;
+    if (event === "DynamicUPIQR") {
+        callBackVaultage(req, res, next);
+    } else if (event === "Payout") {
+        vaultagePayoutCallback(req, res, next);
+    }
+});
 router.post("/sambhavpayCallback", callBackSambhavPay);
 
 export default router;
