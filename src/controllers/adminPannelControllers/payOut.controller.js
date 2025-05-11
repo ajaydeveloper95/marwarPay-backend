@@ -3817,7 +3817,7 @@ export const vaultagePayoutCallback = asyncHandler(async (req, res) => {
                 null
             }
             return res.status(200).json(new ApiResponse(200, null, "Successfully !"))
-        } else if (dataObject.status == "FAILED") {
+        } else if (dataObject.status == "FAILED" || dataObject.status == "FAILURE" && getDocoment?.isSuccess === "Pending") {
             const session = await mongoose.startSession();
 
             try {

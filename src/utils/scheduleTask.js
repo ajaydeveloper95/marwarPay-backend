@@ -18,6 +18,7 @@ import upiWalletModel from "../models/upiWallet.model.js";
 import EwalletModel from "../models/Ewallet.model.js";
 import { customCallBackPayoutUser } from "../controllers/adminPannelControllers/payOut.controller.js";
 import crypto from "crypto";
+import payOutSuccessModel from "../models/payOutSuccess.model.js";
 // import jsonFile from "../../public/elbolineJsonEntry.json" with { type: "json" };
 const matchingTrxIds = [
     "seabird6210244",
@@ -1897,6 +1898,145 @@ async function payoutDuplicateEntryRemoveDBFunc(oldPayoutItem) {
 
 }
 
+const payinTxnIds = [
+    "seabird24131668672",
+    "seabird24131668681",
+    "seabird24131668652",
+    "20250426211815uw67WKJBYs",
+    "seabird24131594139",
+    "aiipuoo347dddkk",
+    "202505021606588cr3AWSZRH",
+    "20250502160749V5SeX2Y2pF",
+    "20250502160756REQd95TiDa",
+    "20250502160751KhPy97YUKC",
+    "20250502160845XV8Bi2xkpT",
+    "20250502160852cIYWlJ5KtD",
+    "20250502160614T57MPx5HMI",
+    "20250502160909HyfhkImVu2",
+    "20250502160930yfW45kmAIB",
+    "20250502160932h9p9ExV2pM",
+    "aiipuoo344dddkk",
+    "aiipuoo1144dddkk",
+    "20250502152544mtrCvuazrt",
+    "202505021525588Z9gzUpXbU",
+    "20250502135526sqmwCuHxIf",
+    "20250502152843GNCBunPeYA",
+    "20250502152927JHCnsdgVPr",
+    "ZPG2505081236054871686577",
+    "ZPG2505081236153284587837",
+    "seabird24132843211",
+    "seabird24132843243",
+    "seabird16132843137",
+    "seabird16132843206",
+    "seabird24132843182",
+    "seabird16132843071",
+    "seabird24132843223",
+    "seabird24132843265",
+    "seabird24132843159",
+    "seabird24132843268",
+    "seabird24132843224",
+    "seabird24132843210",
+    "seabird24132843168",
+    "seabird16132843273",
+    "seabird24132843249",
+    "seabird16132843208",
+    "seabird24132843267",
+    "seabird16132843201",
+    "SMI250509155802360lPdXo",
+    "seabird24132890364",
+]
+
+async function vaultagePayinStatusCheck() {
+    const session = await userDB.startSession({ readPreference: 'primary', readConcern: { level: "majority" }, writeConcern: { w: "majority" } });
+    const release = await transactionMutex.acquire();
+    try {
+        session.startTransaction();
+        const opts = { session };
+        let index = 0
+        for (const id of payinTxnIds) {
+            const isAlreadyExists = await payInModel.findOne({ trxId: id })
+            console.log(++index);
+            if (isAlreadyExists) {
+                console.log("Already exists trxId:", id);
+                continue;
+            }
+            const callbackData = await Log.findOne({ "requestBody.Data.ApiUserReferenceId": id }).lean()
+            if (!callbackData) {
+                console.log("No callback data found for trxId:", id);
+                continue;
+            }
+            const requestBody = callbackData.requestBody;
+            try {
+                const { data } = await axios.post("http://localhost:5000/apiAdmin/v1/payin/vaultageCallBack", requestBody)
+                console.log(" scheduleTask.js:1964 ~ vaultagePayinStatusCheck ~ data:", data);
+            } catch (error) {
+                console.log("Error parsing requestBody:", error);
+                continue;
+
+            }
+        }
+
+        await session.commitTransaction();
+    } catch (error) {
+        console.log(" scheduleTask.js:1961 ~ vaultagePayinStatusCheck ~ error:", error);
+        await session.abortTransaction();
+    } finally {
+        session.endSession();
+        release()
+    }
+}
+
+async function clearPayoutPending() {
+    const release = await transactionMutex.acquire();
+    try {
+        const pendingTransactions = await payOutModelGenerate.find({ isSuccess: "Pending", pannelUse: "vaultagePayoutApi" })
+        for (const transaction of pendingTransactions) {
+            if (transaction.pannelUse !== "vaultagePayoutApi" || transaction.isSuccess !== "Pending") {
+                console.log(" scheduleTask.js:690 ~ clearPayoutPending ~ transaction:", transaction);
+                continue;
+            }
+            const isAlreadyProcessed = await payOutSuccessModel.findOne({ trxId: transaction.trxId });
+            if (isAlreadyProcessed) {
+                console.log(" scheduleTask.js:694 ~ clearPayoutPending ~ isAlreadyProcessed:", isAlreadyProcessed);
+                continue;
+            }
+            console.log(" scheduleTask.js:685 ~ clearPayoutPending ~ pendingTransactions:", pendingTransactions);
+            const headers = {
+                IPAddress: process.env.VAULTAGE_IP_ADDRESS,
+                AuthKey: process.env.VAULTAGE_AUTH_KEY,
+            }
+
+            const payload = {
+                TransactionId: transaction.trxId,
+            }
+
+            const { data } = await axios.post("https://vaultage.in/api/payout/v1/docheckstatus", payload, { headers })
+            console.log(" scheduleTask.js:710 ~ clearPayoutPending ~ data:", data);
+            const callbackPayload = {
+                event: "Payout",
+                Data: {
+                    RRN: data?.data?.rrn,
+                    Status: data?.data?.status,
+                    StatusCode: data?.data?.statusCode,
+                    Message: data?.data?.Message,
+                    ApiWalletTransactionId: data?.data?.apiWalletTransactionId,
+                    APITransactionId: data?.data?.apiTransactionId
+                }
+            }
+
+            const { data: callbackResp } = await axios.post("http://localhost:5000/apiAdmin/v1/payin/vaultageCallBack", callbackPayload)
+
+            console.log(" scheduleTask.js:725 ~ clearPayoutPending ~ callbackResp:", callbackResp);
+
+        }
+
+    } catch (error) {
+        console.log(" scheduleTask.js:685 ~ clearPayoutPending ~ error:", error);
+    } finally {
+        release()
+    }
+}
+
 export default function scheduleTask() {
     // FailedToSuccessPayout()
     // scheduleWayuPayOutCheckSecond()
@@ -1913,4 +2053,6 @@ export default function scheduleTask() {
     // payOutDuplicateEntryRemove()
     // payoutMigrateDuplicateEntry()
     // payOutDuplicateEntryRemoveDB()
+    // vaultagePayinStatusCheck()
+    // clearPayoutPending()
 }
