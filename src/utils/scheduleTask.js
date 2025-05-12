@@ -1991,6 +1991,7 @@ async function clearPayoutPending() {
     try {
         const pendingTransactions = await payOutModelGenerate.find({ isSuccess: "Pending", pannelUse: "vaultagePayoutApi" })
         for (const transaction of pendingTransactions) {
+
             if (transaction.pannelUse !== "vaultagePayoutApi" || transaction.isSuccess !== "Pending") {
                 console.log(" scheduleTask.js:690 ~ clearPayoutPending ~ transaction:", transaction);
                 continue;
@@ -2000,7 +2001,7 @@ async function clearPayoutPending() {
                 console.log(" scheduleTask.js:694 ~ clearPayoutPending ~ isAlreadyProcessed:", isAlreadyProcessed);
                 continue;
             }
-            console.log(" scheduleTask.js:685 ~ clearPayoutPending ~ pendingTransactions:", pendingTransactions);
+            // console.log(" scheduleTask.js:685 ~ clearPayoutPending ~ pendingTransactions:", pendingTransactions);
             const headers = {
                 IPAddress: process.env.VAULTAGE_IP_ADDRESS,
                 AuthKey: process.env.VAULTAGE_AUTH_KEY,
@@ -2023,10 +2024,10 @@ async function clearPayoutPending() {
                     APITransactionId: data?.data?.apiTransactionId
                 }
             }
-
+            // console.log(callbackPayload)
             const { data: callbackResp } = await axios.post("http://localhost:5000/apiAdmin/v1/payin/vaultageCallBack", callbackPayload)
 
-            console.log(" scheduleTask.js:725 ~ clearPayoutPending ~ callbackResp:", callbackResp);
+            // console.log(" scheduleTask.js:725 ~ clearPayoutPending ~ callbackResp:", callbackResp);
 
         }
 
