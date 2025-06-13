@@ -914,6 +914,76 @@ export const generatePayment = async (req, res) => {
                     console.log(" payIn.controller.js:796 ~ generatePayment ~ error:", error);
                     return res.status(500).json({ message: "Failed", data: "trx Id duplicate Find !" })
                 }
+            case "jiffyWalletPayinMind": {
+                try {
+                    const qrData = await qrGenerationModel.create({
+                        memberId: user[0]?._id,
+                        name,
+                        amount,
+                        trxId,
+                        pannelUse: apiSwitchApiOption
+                    });
+                    const API_URL = user[0]?.payInApi?.apiURL
+                    const jiffyWalletPayload = {
+                        merchant_reference_id: trxId,
+                        amount,
+                        currency: "INR",
+                        service: "upi",
+                        MerchantId: process.env.JIFFY_WALLET_MERCHANT_ID,
+                        Password: process.env.JIFFY_WALLET_MERCHANT_PASSWORD,
+                        service_details: {
+                            upi: {
+                                channel: "UPI_INTENT"
+                            }
+                        },
+                        customer_details: {
+                            customer_mobile: mobileNumber,
+                            customer_name: name,
+                            customer_email: email
+                        },
+                        device_details: {
+                            device_name: "Desktop",
+                            device_id: "hdbjkcndfs34234",
+                            device_ip: process.env.VAULTAGE_IP_ADDRESS,
+                        },
+                        geo_location: {
+                            latitude: "26.949498",
+                            longitude: "75.710887"
+                        },
+                        webhook_url: "https://www.google.com"
+                    }
+
+                    const headers = {
+                        AuthToken: process.env.JIFFY_WALLET_AUTH_TOKEN,
+                        IpAddress: process.env.VAULTAGE_IP_ADDRESS
+                    }
+
+                    const { data } = await axios.post(API_URL, jiffyWalletPayload, { headers });
+                    let apiResponse = {}
+                    if (data.response?.data === null) {
+                        qrData.callBackStatus = "Failed";
+                        qrData.save();
+                        apiResponse = {
+                            status_msg: data.response?.message || "FAILED",
+                            status: 500,
+                            trxID: trxId,
+                        }
+                    } else if (data.response.data !== null) {
+                        const metaData = data.response?.data?.data
+                        qrData.qrIntent = metaData?.payload?.url;
+                        qrData.refId = metaData?.apx_payment_id;
+                        qrData.save();
+                        apiResponse.status_msg = metaData?.meta?.message;
+                        apiResponse.status = 200;
+                        apiResponse.qr = metaData?.payload?.url;
+                        apiResponse.trxID = trxId;
+                    }
+                    return res.status(apiResponse.status || 500).json(new ApiResponse(apiResponse.status || 500, apiResponse, undefined, apiResponse.status !== 200 ? "Failed" : "Success"));
+                } catch (error) {
+                    console.log(" payIn.controller.js:958 ~ generatePayment ~ error:", error);
+                    return res.status(500).json({ message: "Failed", data: "trx Id duplicate Find !" })
+                }
+            }
             case "ServerMaintenance":
                 let serverResp = {
                     status_msg: "Server Under Maintenance !",
@@ -1974,6 +2044,15 @@ export const callBackVaultage = asyncHandler(async (req, res) => {
         }
 
         return res.status(200).json(new ApiResponse(200, { pid: process.pid }, "Successfully"));
+    } catch (error) {
+        console.error(error);
+        return res.status(500).json({ success: "Failed", message: error.message || "Internal server error!" });
+    }
+})
+export const callBackJiffy = asyncHandler(async (req, res) => {
+    try {
+     
+        return res.status(200).json(new ApiResponse(200, { pid: 52647 }, "Successfully"));
     } catch (error) {
         console.error(error);
         return res.status(500).json({ success: "Failed", message: error.message || "Internal server error!" });

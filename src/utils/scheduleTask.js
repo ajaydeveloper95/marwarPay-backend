@@ -2001,7 +2001,6 @@ async function clearPayoutPending() {
                 console.log(" scheduleTask.js:694 ~ clearPayoutPending ~ isAlreadyProcessed:", isAlreadyProcessed);
                 continue;
             }
-            // console.log(" scheduleTask.js:685 ~ clearPayoutPending ~ pendingTransactions:", pendingTransactions);
             const headers = {
                 IPAddress: process.env.VAULTAGE_IP_ADDRESS,
                 AuthKey: process.env.VAULTAGE_AUTH_KEY,
@@ -2012,8 +2011,12 @@ async function clearPayoutPending() {
             }
 
             const { data } = await axios.post("https://vaultage.in/api/payout/v1/docheckstatus", payload, { headers })
-            console.log(" scheduleTask.js:710 ~ clearPayoutPending ~ data:", data);
-            const callbackPayload = {
+            console.log(" scheduleTask.js:710 ~ clearPayoutPending ~ data:", data, transaction.trxId);
+            if (data.data?.status === "PENDING") {
+                console.log(" scheduleTask.js:712 ~ clearPayoutPending ~ data.data.status:", data.data?.status);
+                continue;
+            }
+            let callbackPayload = {
                 event: "Payout",
                 Data: {
                     RRN: data?.data?.rrn,
@@ -2021,16 +2024,23 @@ async function clearPayoutPending() {
                     StatusCode: data?.data?.statusCode,
                     Message: data?.data?.Message,
                     ApiWalletTransactionId: data?.data?.apiWalletTransactionId,
-                    APITransactionId: data?.data?.apiTransactionId
+                    APITransactionId: data?.data?.apiTransactionId,
+                    mode: "manual"
                 }
             }
-            // console.log(callbackPayload)
+            if (data.data === null) {
+                console.log(" scheduleTask.js:721 ~ clearPayoutPending ~ data.data:", transaction.trxId);
+                callbackPayload.Data.Status = "Failed"
+                callbackPayload.Data.StatusCode = 400
+                callbackPayload.Data.APITransactionId = transaction.trxId
+                callbackPayload.Data.Message = "Transaction not found"
+            }
             const { data: callbackResp } = await axios.post("http://localhost:5000/apiAdmin/v1/payin/vaultageCallBack", callbackPayload)
 
-            // console.log(" scheduleTask.js:725 ~ clearPayoutPending ~ callbackResp:", callbackResp);
+            console.log(" scheduleTask.js:725 ~ clearPayoutPending ~ callbackResp:", callbackResp);
 
         }
-
+        console.log("all transactions processed");
     } catch (error) {
         console.log(" scheduleTask.js:685 ~ clearPayoutPending ~ error:", error);
     } finally {
