@@ -950,7 +950,7 @@ export const generatePayment = async (req, res) => {
                             latitude: "26.949498",
                             longitude: "75.710887"
                         },
-                        webhook_url: "https://www.google.com"
+                        webhook_url: "https://api.zanithpay.com/apiAdmin/v1/payin/callBackJiffy"
                     }
 
                     const headers = {
@@ -2051,8 +2051,130 @@ export const callBackVaultage = asyncHandler(async (req, res) => {
 })
 export const callBackJiffy = asyncHandler(async (req, res) => {
     try {
-     
-        return res.status(200).json(new ApiResponse(200, { pid: 52647 }, "Successfully"));
+        // const { event, Data } = req.body;
+        // const { TxnStatus, PayerAmount, PayerName, transactioninitdate, WalletTransactionId, PayerMobile, BankRRN, PayerVA, TxnCompletionDate, ApiUserReferenceId } = Data;
+
+        const { meta, data } = req.body
+        const { response_code, message } = meta
+        const { apx_payment_id, client_ref_id, amount, currency, bank_reference, created_at, modified_at, service_charge, service, status } = data
+
+        if (status !== "SUCCESS") {
+            return res.status(400).json({ message: "Failed", data: "Transaction is pending or not successful" });
+        }
+
+        const trx = await qrGenerationModel.findOne({ trxId: client_ref_id });
+
+        if (!trx || trx.callBackStatus !== "Pending") {
+            return res.status(400).json({
+                message: "Failed",
+                data: `Transaction already processed or not created: ${trx?.callBackStatus}`
+            });
+        }
+        trx.callBackStatus = "Success";
+        await trx.save();
+
+        const [userInfo] = await userDB.aggregate([
+            { $match: { _id: trx?.memberId } },
+            { $lookup: { from: "packages", localField: "package", foreignField: "_id", as: "package" } },
+            { $unwind: { path: "$package", preserveNullAndEmptyArrays: true } },
+            { $lookup: { from: "payinpackages", localField: "package.packagePayInCharge", foreignField: "_id", as: "packageCharge" } },
+            { $unwind: { path: "$packageCharge", preserveNullAndEmptyArrays: true } },
+            { $project: { _id: 1, userName: 1, upiWalletBalance: 1, packageCharge: 1 } }
+        ]);
+
+        const callBackPayinUrlResult = await callBackResponseModel.findOne({ memberId: trx?.memberId, isActive: true }).select("_id payInCallBackUrl isActive");
+
+        const callBackPayinUrl = callBackPayinUrlResult?.payInCallBackUrl;
+
+        if (!userInfo) {
+            return res.status(400).json({ message: "Failed", data: "User info is missing" });
+        }
+
+        const chargeRange = userInfo.packageCharge?.payInChargeRange || [];
+        const charge = chargeRange.find(range => range.lowerLimit <= amount && range.upperLimit > amount);
+
+        const userChargeApply = charge.chargeType === "Flat" ? charge.charge : (charge.charge / 100) * amount;
+        const finalAmountAdd = amount - userChargeApply;
+
+        const payInCreateResult = await payInModel.create({
+            memberId: trx.memberId,
+            payerName: trx?.name,
+            trxId: client_ref_id,
+            amount: amount,
+            chargeAmount: userChargeApply,
+            finalAmount: finalAmountAdd,
+            vpaId: "abc@vpa",
+            bankRRN: bank_reference,
+            description: `QR Generated Successfully Amount:${amount} PayerVa:${"abc@vpa"} BankRRN:${bank_reference}`,
+            trxCompletionDate: modified_at,
+            trxInItDate: created_at,
+            isSuccess: "Success"
+        })
+
+        // session locking
+        // db locking with deducted amount 
+        // const release = await transactionMutex.acquire();
+        const upiWalletAdd = await userDB.startSession();
+        const transactionOptions = {
+            readConcern: { level: 'linearizable' },
+            writeConcern: { w: 'majority' },
+            readPreference: { mode: 'primary' },
+            maxTimeMS: 1500
+        };
+        try {
+            upiWalletAdd.startTransaction(transactionOptions);
+            const opts = { upiWalletAdd };
+            const upiWalletUpdateResult = await userDB.findByIdAndUpdate(userInfo._id, { $inc: { upiWalletBalance: + finalAmountAdd } }, {
+                returnDocument: 'after',
+                upiWalletAdd
+            })
+
+            const upiWalletDataObject = {
+                memberId: upiWalletUpdateResult?._id,
+                transactionType: "Cr.",
+                transactionAmount: finalAmountAdd,
+                beforeAmount: Number(upiWalletUpdateResult?.upiWalletBalance) - Number(finalAmountAdd),
+                afterAmount: upiWalletUpdateResult?.upiWalletBalance,
+                description: `Successfully Cr. amount: ${finalAmountAdd} with trxId: ${client_ref_id}`,
+                transactionStatus: "Success"
+            }
+
+            await upiWalletModel.create([upiWalletDataObject], opts);
+            // Commit the transaction
+            await upiWalletAdd.commitTransaction();
+        } catch (error) {
+            await upiWalletAdd.abortTransaction();
+        } finally {
+            upiWalletAdd.endSession();
+            // release()
+        }
+
+        const userRespSendApi = {
+            status: status === "SUCCESS" ? 200 : 400,
+            payerAmount: amount,
+            payerName: trx?.name,
+            txnID: client_ref_id,
+            BankRRN: bank_reference,
+            payerVA: "abc@vpa",
+            TxnInitDate: created_at,
+            TxnCompletionDate: modified_at
+        };
+        if (!callBackPayinUrl) {
+            return res.status(400).json({ message: "Failed", data: "Callback URL is missing" });
+        }
+
+        try {
+            await axios.post(callBackPayinUrl, userRespSendApi, {
+                headers: {
+                    "Accept": "application/json",
+                    "Content-Type": "application/json"
+                }
+            });
+        } catch (error) {
+            null
+        }
+
+        return res.status(200).json(new ApiResponse(200, { pid: process.pid }, "Successfully"));
     } catch (error) {
         console.error(error);
         return res.status(500).json({ success: "Failed", message: error.message || "Internal server error!" });
