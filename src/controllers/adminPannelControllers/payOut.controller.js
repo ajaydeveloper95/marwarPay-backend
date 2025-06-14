@@ -2286,7 +2286,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                         trxId: trxId || "0",
                         opt_msg: StatusMessage || "null"
                     };
-                    return { message: "Failed", data: userRespSend }
+                    return { message: StatusCode === 0 ? "Success" : "Initiated", data: userRespSend }
                 }
             },
             vaultagePayoutApi: {
@@ -3614,7 +3614,7 @@ export const jiffyCallbackResponse = asyncHandler(async (req, res) => {
                 session.endSession();
                 // console.error("Transaction failed:", error);
                 return res.status(200).json({ message: "Error", error: error.message });
-            }finally{
+            } finally {
                 release()
             }
         }
