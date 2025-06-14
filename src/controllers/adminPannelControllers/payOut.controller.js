@@ -3499,13 +3499,14 @@ export const jiffyCallbackResponse = asyncHandler(async (req, res) => {
     try {
         const Data = req.body
 
-        const dataObject = { txnid: Data?.ClientUniqueID, optxid: Data?.order_id, rrn: Data?.BankRRN, status: Data?.StatusCode }
+        let dataObject = { jiffyId: Data?.ClientUniqueID, optxid: Data?.order_id, rrn: Data?.BankRRN, status: Data?.StatusCode }
 
-        let getDocoment = await payOutModelGenerate.findOne({ refId: dataObject?.txnid });
+        let getDocoment = await payOutModelGenerate.findOne({ refId: dataObject?.jiffyId });
 
         if (getDocoment?.isSuccess === "Success" || getDocoment?.isSuccess === "Failed") {
             return res.status(200).json({ message: "Failed", data: `Trx Status Already ${getDocoment?.isSuccess}` })
         }
+        dataObject.txnid = getDocoment.trxId
 
         if (getDocoment && dataObject?.status == "0" && getDocoment?.isSuccess === "Pending") {
             getDocoment.isSuccess = "Success"
@@ -3554,7 +3555,7 @@ export const jiffyCallbackResponse = asyncHandler(async (req, res) => {
                 rrn: dataObject?.rrn
             }
             try {
-                axios.post(payOutUserCallBackURL, shareObjData, config)
+                await axios.post(payOutUserCallBackURL, shareObjData, config)
             } catch (error) {
                 null
             }
@@ -3622,6 +3623,8 @@ export const jiffyCallbackResponse = asyncHandler(async (req, res) => {
             return res.status(200).json({ message: "Failed", data: "Trx Not Found !" })
         }
     } catch (error) {
+        console.log(" payOut.controller.js:3626 ~ jiffyCallbackResponse ~ error:", error);
+
         return res.status(200).json({ message: "Failed", data: "Internel server Error !" })
     }
     // finally {
