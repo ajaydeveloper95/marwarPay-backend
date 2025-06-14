@@ -2208,22 +2208,47 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                 },
 
                 res: async (apiResponse) => {
-                    console.log(" payOut.controller.js:2205 ~ res: ~ apiResponse:", apiResponse);
+                    // console.log(" payOut.controller.js:2205 ~ res: ~ apiResponse:", apiResponse);
 
                     const { StatusCode, StatusMessage, ClientUniqueID, TransactionId, BeneName, BankRRN, TransactionAmount } = apiResponse
-
                     payOutModelGen.refId = ClientUniqueID
                     await payOutModelGen.save()
-                    // if (StatusCode == "0" && StatusMessage === "Transaction Successful") {
-                    //     let userRespSend = {
-                    //         statusCode: 1,
-                    //         status: 1,
-                    //         trxId: trxId || "0",
-                    //         opt_msg: StatusMessage || "null"
-                    //     };
-                    //     return new ApiResponse(200, userRespSend);
-                    // } else {
+                    if (StatusCode == "0") {
+
+                        let payoutDataStore = {
+                            memberId: user?._id,
+                            amount: amount,
+                            chargeAmount: chargeAmount,
+                            finalAmount: finalAmountDeduct,
+                            bankRRN: BankRRN,
+                            trxId: trxId,
+                            optxId: ClientUniqueID,
+                            isSuccess: "Success"
+                        }
+                        await payOutModel.create(payoutDataStore);
+                        payOutModelGen.isSuccess = "Success"
+                        await payOutModelGen.save()
+                        let callBackBody = {
+                            optxid: ClientUniqueID,
+                            status: "SUCCESS",
+                            txnid: trxId,
+                            amount: amount,
+                            rrn: BankRRN,
+                        }
+
+                        customCallBackPayoutUser(user?._id, callBackBody)
+
+                        let userREspSend = {
+                            statusCode: StatusCode == 0 ? 1 : 2,
+                            status: StatusCode == 0 ? 1 : 2,
+                            trxId: trxId || 0,
+                            opt_msg: StatusMessage || "null"
+                        }
+                        return new ApiResponse(200, userREspSend)
+                    }
+                    // else if (StatusCode == "1") {
                     //     const release = await genPayoutMutex.acquire();
+                    //     // db locking with added amount 
                     //     const walletAddsession = await userDB.startSession();
                     //     const transactionOptions = {
                     //         readConcern: { level: 'linearizable' },
@@ -2231,10 +2256,12 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                     //         readPreference: { mode: 'primary' },
                     //         maxTimeMS: 1500
                     //     };
+                    //     // wallet added and store ewallet trx
                     //     try {
                     //         walletAddsession.startTransaction(transactionOptions);
                     //         const opts = { walletAddsession };
 
+                    //         // Perform the update within the transaction
                     //         // update wallet 
                     //         let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct, EwalletFundLock: + finalAmountDeduct } }, {
                     //             returnDocument: 'after',
@@ -2260,33 +2287,45 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                     //         // Commit the transaction
                     //         await walletAddsession.commitTransaction();
                     //         // console.log('Transaction committed successfully');
-                    //         payOutModelGen.isSuccess = "Failed"
-                    //         payOutModelGen.refId = ClientUniqueID
-                    //         await payOutModelGen.save()
                     //     } catch (error) {
-                    //         console.log("inside error:", error.message)
+                    //         // console.log(error)
                     //         await walletAddsession.abortTransaction();
+                    //         // console.error('Transaction aborted due to error:', error);
                     //     }
                     //     finally {
                     //         walletAddsession.endSession();
                     //         release()
                     //     }
 
-                    //     let userRespSend = {
-                    //         statusCode: 1,
-                    //         status: 1,
-                    //         trxId: trxId || "0",
+                    //     payOutModelGen.isSuccess = "Failed"
+                    //     await await payOutModelGen.save()
+                    //     let userREspSend2 = {
+                    //         statusCode: StatusCode == 1 ? 0 : 2,
+                    //         status: StatusCode == 1 ? 0 : 2,
+                    //         trxId: trxId || 0,
                     //         opt_msg: StatusMessage || "null"
-                    //     };
-                    //     return { message: "Failed", data: userRespSend }
+                    //     }
+                    //     return { message: "Failed", data: userREspSend2 }
                     // }
-                    let userRespSend = {
-                        statusCode: 2,
-                        status: 2,
-                        trxId: trxId || "0",
-                        opt_msg: StatusMessage || "null"
-                    };
-                    return { message: StatusCode === 0 ? "Success" : "Initiated", data: userRespSend }
+                    else {
+                        // let callBackBody = {
+                        //     optxid: orderId || "",
+                        //     status: "Pending",
+                        //     txnid: clientOrderId || "",
+                        //     amount: amount,
+                        //     rrn: utr || "",
+                        // }
+                        // customCallBackPayoutUser(user?._id, callBackBody)
+
+                        let userREspSend = {
+                            statusCode: 2,
+                            status: 2,
+                            trxId: trxId || 0,
+                            opt_msg: StatusMessage || "Payout initiated, awaiting response from banking side."
+                        }
+                        return new ApiResponse(200, userREspSend)
+                    }
+
                 }
             },
             vaultagePayoutApi: {
@@ -3506,7 +3545,7 @@ export const jiffyCallbackResponse = asyncHandler(async (req, res) => {
         if (getDocoment?.isSuccess === "Success" || getDocoment?.isSuccess === "Failed") {
             return res.status(200).json({ message: "Failed", data: `Trx Status Already ${getDocoment?.isSuccess}` })
         }
-        dataObject.txnid = getDocoment.trxId
+        dataObject.txnid = getDocoment?.trxId
 
         if (getDocoment && dataObject?.status == "0" && getDocoment?.isSuccess === "Pending") {
             getDocoment.isSuccess = "Success"
