@@ -14,6 +14,7 @@ import { Mutex } from "async-mutex";
 import mongoose from "mongoose";
 import { Parser } from "json2csv";
 import crypto from "crypto";
+import BeneficiaryModel from "../../models/beneficiary.model.js";
 
 
 const genPayoutMutex = new Mutex();
@@ -2100,7 +2101,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                     "OrderId": trxId,
                     "BeneficiaryName": accountHolderName,
                     "PaymentMode": "IMPS",
-                    "MemberId": mobileNumber
+                    "MemberId": "MT17332757"
                 },
 
                 res: async (apiResponse) => {
@@ -2164,16 +2165,120 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             walletAddsession.endSession();
                             release()
                         }
-                        return { message: "Failed", data: userRespSend }
-                    }
-                    else {
                         let userRespSend = {
                             statusCode: 1,
                             status: 1,
                             trxId: trxId || "0",
                             opt_msg: message || "null"
                         };
+                        return { message: "Failed", data: userRespSend }
+                    }
+                    // else {
+                    //     let userRespSend = {
+                    //         statusCode: 1,
+                    //         status: 1,
+                    //         trxId: trxId || "0",
+                    //         opt_msg: message || "null"
+                    //     };
+                    //     return new ApiResponse(200, userRespSend);
+                    // }
+                }
+            },
+            jiffypayoutSkill: {
+                url: payOutApi?.apiURL,
+                data: {
+                    "ClientReferenceId": trxId,
+                    "BeneficiaryId": "",
+                    "BeneficiaryName": accountHolderName,
+                    "AccountNumber": accountNumber,
+                    "IFSCCode": ifscCode,
+                    "BeneficiaryMobile": "0",
+                    "TransactionType": "IMPS",
+                    "TransactionAmount": String(amount),
+                    "AgentId": "63885503379121",
+                    "BankName": bankName,
+                    "Pincode": "302012",
+                    "CustomerName": accountHolderName,
+                    "CustomerNumber": String(mobileNumber),
+                    "IpAddress": process.env.VAULTAGE_IP_ADDRESS,
+                    "Latitude": "26.949498",
+                    "Longitude": "75.710887",
+                    "PIN": "23334856",
+                    "MemberId": process.env.JIFFY_WALLET_MERCHANT_ID
+                },
+
+                res: async (apiResponse) => {
+                    console.log(" payOut.controller.js:2205 ~ res: ~ apiResponse:", apiResponse);
+
+                    const { StatusCode, StatusMessage, ClientUniqueID, TransactionId, BeneName, BankRRN, TransactionAmount } = apiResponse
+
+                    if (StatusCode == "0" && StatusMessage === "Transaction Successful") {
+                        payOutModelGen.refId = ClientUniqueID
+                        payOutModelGen.save()
+                        let userRespSend = {
+                            statusCode: 1,
+                            status: 1,
+                            trxId: trxId || "0",
+                            opt_msg: StatusMessage || "null"
+                        };
                         return new ApiResponse(200, userRespSend);
+                    } else {
+                        const release = await genPayoutMutex.acquire();
+                        const walletAddsession = await userDB.startSession();
+                        const transactionOptions = {
+                            readConcern: { level: 'linearizable' },
+                            writeConcern: { w: 'majority' },
+                            readPreference: { mode: 'primary' },
+                            maxTimeMS: 1500
+                        };
+                        try {
+                            walletAddsession.startTransaction(transactionOptions);
+                            const opts = { walletAddsession };
+
+                            // update wallet 
+                            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct, EwalletFundLock: + finalAmountDeduct } }, {
+                                returnDocument: 'after',
+                                walletAddsession
+                            })
+
+                            let afterAmount = userWallet?.EwalletBalance
+                            let beforeAmount = userWallet?.EwalletBalance - finalAmountDeduct;
+
+                            // ewallet store 
+                            let walletModelDataStore = {
+                                memberId: user?._id,
+                                transactionType: "Cr.",
+                                transactionAmount: amount,
+                                beforeAmount: beforeAmount,
+                                chargeAmount: chargeAmount,
+                                afterAmount: afterAmount,
+                                description: `Successfully Cr. amount: ${Number(finalAmountDeduct)} with transaction Id: ${trxId}`,
+                                transactionStatus: "Success",
+                            }
+
+                            await walletModel.create([walletModelDataStore], opts)
+                            // Commit the transaction
+                            await walletAddsession.commitTransaction();
+                            // console.log('Transaction committed successfully');
+                            payOutModelGen.isSuccess = "Failed"
+                            payOutModelGen.refId = ClientUniqueID
+                            await payOutModelGen.save()
+                        } catch (error) {
+                            console.log("inside error:", error.message)
+                            await walletAddsession.abortTransaction();
+                        }
+                        finally {
+                            walletAddsession.endSession();
+                            release()
+                        }
+
+                        let userRespSend = {
+                            statusCode: 1,
+                            status: 1,
+                            trxId: trxId || "0",
+                            opt_msg: StatusMessage || "null"
+                        };
+                        return { message: "Failed", data: userRespSend }
                     }
                 }
             },
@@ -2263,7 +2368,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
             },
         };
 
-        const apiResponse = await performPayoutApiCall(payOutApi, apiConfig);
+        const apiResponse = await performPayoutApiCall(payOutApi, apiConfig, accountNumber, ifscCode, bankName, accountHolderName, mobileNumber);
         if (!apiResponse || typeof apiResponse != "object") {
             // payOutModelGen.isSuccess = "Failed";
             // await payOutModelGen.save();
@@ -2280,16 +2385,18 @@ export const generatePayOut = asyncHandler(async (req, res) => {
     // }
 });
 
-export const performPayoutApiCall = async (payOutApi, apiConfig) => {
+export const performPayoutApiCall = async (payOutApi, apiConfig, accountNo, ifsc, bankName, accountHolderName, mobile) => {
     try {
         let apiDetails;
         if (payOutApi?.apiName === "jiffyWalletApi") {
             try {
 
                 const { data } = await axios.post("https://jiffywallet.in/Api/Payout/Token", {}, {
-                    client_id: "ertertertererer",
-                    client_secret: "gfhfgfghfgfggfgf",
-                    Merchant_Id: "MT00008478"
+                    headers: {
+                        client_id: "ertertertererer",
+                        client_secret: "gfhfgfghfgfggfgf",
+                        Merchant_Id: "MT00008478"
+                    }
                 })
 
                 const token = JSON.parse(data?.response).data.token;
@@ -2299,15 +2406,47 @@ export const performPayoutApiCall = async (payOutApi, apiConfig) => {
             } catch (error) {
                 console.log(" payOut.controller.js:2310 ~ performPayoutApiCall ~ error:", error);
             }
+        } else if (payOutApi?.apiName === "jiffypayoutSkill") {
+            const isBeneficiaryExists = await BeneficiaryModel.findOne({ accountNo, ifsc, bankName })
+            let beneficiaryId;
+            apiDetails = apiConfig[payOutApi?.apiName];
+            if (!isBeneficiaryExists) {
+                try {
+                    const payload = {
+                        "AgentId": "63885503379121",
+                        "BeneficiaryName": accountHolderName,
+                        "BeneficiaryAccountNumber": accountNo,
+                        "BeneficiaryIFSCCode": ifsc,
+                        "BeneficiaryMobile": "",
+                        "BeneficiaryVerified": true
+                    }
+                    const headers = {
+                        AuthToken: process.env.JIFFY_WALLET_AUTH_TOKEN,
+                        IpAddress: process.env.VAULTAGE_IP_ADDRESS
+                    }
+                    const { data } = await axios.post("https://jiffywallet.in/Api/merchant/AddBeneficiary", payload, { headers })
+                    if (data.result === 0) {
+                        BeneficiaryModel.create({
+                            accountNo, ifsc, bankName, beneficiaryId: data?.beneficiaryId, usedPanel: "jiffypayoutSkill"
+                        })
+                    }
+                    beneficiaryId = data?.beneficiaryId
+                } catch (error) {
+                    console.log(" payOut.controller.js:2419 ~ performPayoutApiCall ~ error:", error?.response?.data);
+                    throw Error("Beneficery add issue")
+                }
+            } else {
+                beneficiaryId = isBeneficiaryExists.beneficiaryId
+            }
+            apiDetails.data.BeneficiaryId = beneficiaryId
         }
         apiDetails ??= apiConfig[payOutApi?.apiName];
         if (!apiDetails) return null;
-
         const response = await axios.post(apiDetails.url, apiDetails.data, { headers: apiDetails.headers });
-        // console.log(response, "respnose")
         return response?.data || null;
+
     } catch (error) {
-        console.log(" payOut.controller.js:2314 ~ performPayoutApiCall ~ error:", error);
+        console.log(" payOut.controller.js:2314 ~ performPayoutApiCall ~ error:", error?.response?.data);
 
         // console.log(error, "error")
         if (error?.response?.data?.fault?.detail?.errorcode === "steps.accesscontrol.IPDeniedAccess") {
@@ -3353,15 +3492,15 @@ export const jiffyCallbackResponse = asyncHandler(async (req, res) => {
     try {
         const Data = req.body
 
-        const dataObject = { txnid: Data?.order_id, optxid: Data?.order_id, rrn: Data?.utr_no, status: Data?.status }
+        const dataObject = { txnid: Data?.ClientUniqueID, optxid: Data?.order_id, rrn: Data?.BankRRN, status: Data?.StatusCode }
 
-        let getDocoment = await payOutModelGenerate.findOne({ trxId: dataObject?.txnid });
+        let getDocoment = await payOutModelGenerate.findOne({ refId: dataObject?.txnid });
 
         if (getDocoment?.isSuccess === "Success" || getDocoment?.isSuccess === "Failed") {
             return res.status(200).json({ message: "Failed", data: `Trx Status Already ${getDocoment?.isSuccess}` })
         }
 
-        if (getDocoment && dataObject?.status === "SUCCESS" && getDocoment?.isSuccess === "Pending") {
+        if (getDocoment && dataObject?.status == "0" && getDocoment?.isSuccess === "Pending") {
             getDocoment.isSuccess = "Success"
             await getDocoment.save();
 

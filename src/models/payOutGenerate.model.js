@@ -49,6 +49,11 @@ const payOutSchemaGen = new Schema({
         enum: ["Pending", "Failed", "Success"],
         default: "Pending",
     },
+    refId: {
+        type: String,
+        unique: true,
+        index: true
+    }
 }, { timestamps: true });
 
 payOutSchemaGen.index({createdAt:1}) 
