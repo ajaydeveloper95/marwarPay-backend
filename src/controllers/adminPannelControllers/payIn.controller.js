@@ -2517,7 +2517,7 @@ async function sambhavPayin({ orderNo, amount, currency = "INR", txnReqType = "S
     }
 }
 
-async function callbackAirpay() {
+export async function callbackAirpay() {
     try {
         return res.status(200).json(new ApiResponse(200, { pid: process.pid }, "Successfully"));
     } catch (error) {
