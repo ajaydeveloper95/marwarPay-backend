@@ -17,6 +17,7 @@ import oldQrGenerationModel from "../../models/oldQrGeneration.model.js";
 import SambhavPay from "./sambhavPay.controller.js";
 import packageModel from "../../models/package.model.js";
 import payInChargeModel from "../../models/payInCharge.model.js";
+import crypto from "crypto"
 
 const transactionMutex = new Mutex();
 // const generatePayinMutex = new Mutex();
@@ -978,6 +979,172 @@ export const generatePayment = async (req, res) => {
                         apiResponse.qr = metaData?.payload?.url;
                         apiResponse.trxID = trxId;
                     }
+                    return res.status(apiResponse.status || 500).json(new ApiResponse(apiResponse.status || 500, apiResponse, undefined, apiResponse.status !== 200 ? "Failed" : "Success"));
+                } catch (error) {
+                    console.log(" payIn.controller.js:958 ~ generatePayment ~ error:", error);
+                    return res.status(500).json({ message: "Failed", data: "trx Id duplicate Find !" })
+                }
+            }
+            case "airpayPayin": {
+                try {
+                    const qrData = await qrGenerationModel.create({
+                        memberId: user[0]?._id,
+                        name,
+                        amount,
+                        trxId,
+                        pannelUse: apiSwitchApiOption
+                    });
+                    const API_URL = user[0]?.payInApi?.apiURL
+                    const username = process.env.AIRPAY_USERNAME;
+                    const password = process.env.AIRPAY_PASSWORD;
+                    const secret = "ehfuywgfbyugfyu";
+                    const mercid = process.env.AIRPAY_MERCHANT_ID;
+
+                    const key256 = crypto
+                        .createHash("sha256")
+                        .update(`${username}~:~${password}`)
+                        .digest("hex");
+
+                    const orderid = trxId;
+                    const amt = amount;
+                    const buyerPhone = mobileNumber;
+                    const buyerEmail = email;
+                    const mer_dom = "dkbhab";
+                    const call_type = "upiqr";
+
+                    const alldata = `${mercid}${orderid}${amt}${buyerPhone}${buyerEmail}${mer_dom}${call_type}${new Date()
+                        .toISOString()
+                        .slice(0, 10)}`;
+
+                    const checksum = crypto
+                        .createHash("sha256")
+                        .update(`${key256}@${alldata}`)
+                        .digest("hex");
+
+                    const fields = {
+                        mercid: mercid,
+                        orderid: orderid,
+                        amount: amt,
+                        buyerPhone: buyerPhone,
+                        buyerEmail: buyerEmail,
+                        mer_dom: mer_dom,
+                        call_type: call_type,
+                    };
+
+                    const json_data = JSON.stringify(fields);
+                    const encKey = crypto.createHash("md5").update(secret).digest("hex");
+
+                    function encryptText(plainText, key) {
+                        const iv = crypto.randomBytes(8).toString("hex");
+                        const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
+                        let encrypted = cipher.update(plainText, "utf8", "base64");
+                        encrypted += cipher.final("base64");
+                        const encryptedText = iv + encrypted;
+                        return encryptedText;
+                    }
+
+                    const encData = encryptText(json_data, encKey);
+
+                    const post_fields = JSON.stringify({
+                        encData: encData,
+                        checksum: checksum,
+                        mercid: mercid,
+                    });
+
+                    const response = await axios.post("https://payments.airpay.co.in/api/generateUpiQr.php", post_fields, {
+                        headers: {
+                            "Content-Type": "application/json",
+                        }
+                    }
+                    )
+                    console.log(" payIn.controller.js:1060 ~ generatePayment ~ response:", response.data);
+                    let apiResponse = {}
+                    if (response.data.status == 400) {
+                        qrData.callBackStatus = "Failed";
+                        qrData.save();
+                        apiResponse = {
+                            status_msg: response.data.error || "FAILED",
+                            status: 400,
+                            trxID: trxId,
+                        }
+                        return res.status(400).json(new ApiResponse(400, apiResponse, undefined, apiResponse.status !== 200 ? "Failed" : "Success"));
+                    }
+
+                    const encryptedData = response.data.data;
+
+                    function decryptText(encrypted, key) {
+                        const key1 = key;
+                        const iv1 = encrypted.substring(0, 16);
+                        const data = encrypted.substring(16);
+                        const decipher = crypto.createDecipheriv("aes-256-cbc", key1, iv1);
+                        let decrypted = decipher.update(
+                            Buffer.from(data, "base64"),
+                            "binary",
+                            "utf8"
+                        );
+                        decrypted += decipher.final("utf8");
+                        return decrypted ? decrypted : encrypted;
+                    }
+                    decrypted = decryptText(encryptedData, encKey);
+                    console.log(" payIn.controller.js:1077 ~ generatePayment ~ decrypted:", decrypted);
+
+
+
+
+                    // const jiffyWalletPayload = {
+                    //     merchant_reference_id: trxId,
+                    //     amount,
+                    //     currency: "INR",
+                    //     service: "upi",
+                    //     MerchantId: process.env.JIFFY_WALLET_MERCHANT_ID,
+                    //     Password: process.env.JIFFY_WALLET_MERCHANT_PASSWORD,
+                    //     service_details: {
+                    //         upi: {
+                    //             channel: "UPI_INTENT"
+                    //         }
+                    //     },
+                    //     customer_details: {
+                    //         customer_mobile: mobileNumber,
+                    //         customer_name: name,
+                    //         customer_email: email
+                    //     },
+                    //     device_details: {
+                    //         device_name: "Desktop",
+                    //         device_id: "hdbjkcndfs34234",
+                    //         device_ip: process.env.VAULTAGE_IP_ADDRESS,
+                    //     },
+                    //     geo_location: {
+                    //         latitude: "26.949498",
+                    //         longitude: "75.710887"
+                    //     },
+                    //     webhook_url: "https://api.zanithpay.com/apiAdmin/v1/payin/callBackJiffy"
+                    // }
+
+                    // const headers = {
+                    //     AuthToken: process.env.JIFFY_WALLET_AUTH_TOKEN,
+                    //     IpAddress: process.env.VAULTAGE_IP_ADDRESS
+                    // }
+
+                    // const { data } = await axios.post(API_URL, jiffyWalletPayload, { headers });
+                    // let apiResponse = {}
+                    // if (data.response?.data === null) {
+                    //     qrData.callBackStatus = "Failed";
+                    //     qrData.save();
+                    //     apiResponse = {
+                    //         status_msg: data.response?.message || "FAILED",
+                    //         status: 500,
+                    //         trxID: trxId,
+                    //     }
+                    // } else if (data.response.data !== null) {
+                    //     const metaData = data.response?.data?.data
+                    //     qrData.qrIntent = metaData?.payload?.url;
+                    //     qrData.refId = metaData?.apx_payment_id;
+                    //     qrData.save();
+                    //     apiResponse.status_msg = metaData?.meta?.message;
+                    //     apiResponse.status = 200;
+                    //     apiResponse.qr = metaData?.payload?.url;
+                    //     apiResponse.trxID = trxId;
+                    // }
                     return res.status(apiResponse.status || 500).json(new ApiResponse(apiResponse.status || 500, apiResponse, undefined, apiResponse.status !== 200 ? "Failed" : "Success"));
                 } catch (error) {
                     console.log(" payIn.controller.js:958 ~ generatePayment ~ error:", error);
@@ -2347,6 +2514,14 @@ async function sambhavPayin({ orderNo, amount, currency = "INR", txnReqType = "S
         }
     } else {
         return respHandler(response, api_url);
+    }
+}
+
+async function callbackAirpay() {
+    try {
+        return res.status(200).json(new ApiResponse(200, { pid: process.pid }, "Successfully"));
+    } catch (error) {
+
     }
 }
 
