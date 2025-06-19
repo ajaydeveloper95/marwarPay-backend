@@ -18,6 +18,7 @@ import SambhavPay from "./sambhavPay.controller.js";
 import packageModel from "../../models/package.model.js";
 import payInChargeModel from "../../models/payInCharge.model.js";
 import crypto from "crypto"
+import { airPaydecryptText, airPayencryptText } from "../../utils/CryptoEnc.js";
 
 const transactionMutex = new Mutex();
 // const generatePayinMutex = new Mutex();
@@ -995,10 +996,10 @@ export const generatePayment = async (req, res) => {
                         pannelUse: apiSwitchApiOption
                     });
                     const API_URL = user[0]?.payInApi?.apiURL
-                    const username = process.env.AIRPAY_USERNAME;
-                    const password = process.env.AIRPAY_PASSWORD;
-                    const secret = "ehfuywgfbyugfyu";
-                    const mercid = process.env.AIRPAY_MERCHANT_ID;
+                    const username = process?.env?.AIRPAY_USERNAME;
+                    const password = process?.env?.AIRPAY_PASSWORD;
+                    const secret = process?.env?.AIRPAY_SECRET;
+                    const mercid = process?.env?.AIRPAY_MERCHANT_ID;
 
                     const key256 = crypto
                         .createHash("sha256")
@@ -1009,7 +1010,7 @@ export const generatePayment = async (req, res) => {
                     const amt = amount;
                     const buyerPhone = mobileNumber;
                     const buyerEmail = email;
-                    const mer_dom = "dkbhab";
+                    const mer_dom = "aHR0cHM6Ly9taW5kbWF0cml4MTEuY29t";
                     const call_type = "upiqr";
 
                     const alldata = `${mercid}${orderid}${amt}${buyerPhone}${buyerEmail}${mer_dom}${call_type}${new Date()
@@ -1034,16 +1035,7 @@ export const generatePayment = async (req, res) => {
                     const json_data = JSON.stringify(fields);
                     const encKey = crypto.createHash("md5").update(secret).digest("hex");
 
-                    function encryptText(plainText, key) {
-                        const iv = crypto.randomBytes(8).toString("hex");
-                        const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
-                        let encrypted = cipher.update(plainText, "utf8", "base64");
-                        encrypted += cipher.final("base64");
-                        const encryptedText = iv + encrypted;
-                        return encryptedText;
-                    }
-
-                    const encData = encryptText(json_data, encKey);
+                    const encData = airPayencryptText(json_data, encKey);
 
                     const post_fields = JSON.stringify({
                         encData: encData,
@@ -1057,98 +1049,38 @@ export const generatePayment = async (req, res) => {
                         }
                     }
                     )
-                    console.log(" payIn.controller.js:1060 ~ generatePayment ~ response:", response.data);
-                    let apiResponse = {}
-                    if (response.data.status == 400) {
+
+                    const encryptedDataAirpay = response?.data?.data;
+                    let decryptedString = airPaydecryptText(encryptedDataAirpay, encKey);
+                    let decryptedResp = JSON.parse(decryptedString);
+
+                    let dataApiResponse = {
+                        status_msg: decryptedResp?.status == 200 ? "generated" : "failed",
+                        status: decryptedResp?.status,
+                        qrImage: decryptedResp?.QRCODE_STRING,
+                        qr: decryptedResp?.QRCODE_STRING,
+                        trxID: qrData?.trxID,
+                    }
+
+                    if (decryptedResp?.status != 200) {
                         qrData.callBackStatus = "Failed";
-                        qrData.save();
-                        apiResponse = {
-                            status_msg: response.data.error || "FAILED",
-                            status: 400,
-                            trxID: trxId,
-                        }
-                        return res.status(400).json(new ApiResponse(400, apiResponse, undefined, apiResponse.status !== 200 ? "Failed" : "Success"));
+                        await qrData.save();
+                        return res.status(400).json({ message: "Failed", data: dataApiResponse })
+                    } else {
+                        qrData.qrData = decryptedResp?.QRCODE_STRING;
+                        qrData.qrIntent = decryptedResp?.QRCODE_STRING;
+                        qrData.refId = decryptedResp?.RID;
+                        await qrData.save();
                     }
 
-                    const encryptedData = response.data.data;
-
-                    function decryptText(encrypted, key) {
-                        const key1 = key;
-                        const iv1 = encrypted.substring(0, 16);
-                        const data = encrypted.substring(16);
-                        const decipher = crypto.createDecipheriv("aes-256-cbc", key1, iv1);
-                        let decrypted = decipher.update(
-                            Buffer.from(data, "base64"),
-                            "binary",
-                            "utf8"
-                        );
-                        decrypted += decipher.final("utf8");
-                        return decrypted ? decrypted : encrypted;
-                    }
-                    decrypted = decryptText(encryptedData, encKey);
-                    console.log(" payIn.controller.js:1077 ~ generatePayment ~ decrypted:", decrypted);
-
-
-
-
-                    // const jiffyWalletPayload = {
-                    //     merchant_reference_id: trxId,
-                    //     amount,
-                    //     currency: "INR",
-                    //     service: "upi",
-                    //     MerchantId: process.env.JIFFY_WALLET_MERCHANT_ID,
-                    //     Password: process.env.JIFFY_WALLET_MERCHANT_PASSWORD,
-                    //     service_details: {
-                    //         upi: {
-                    //             channel: "UPI_INTENT"
-                    //         }
-                    //     },
-                    //     customer_details: {
-                    //         customer_mobile: mobileNumber,
-                    //         customer_name: name,
-                    //         customer_email: email
-                    //     },
-                    //     device_details: {
-                    //         device_name: "Desktop",
-                    //         device_id: "hdbjkcndfs34234",
-                    //         device_ip: process.env.VAULTAGE_IP_ADDRESS,
-                    //     },
-                    //     geo_location: {
-                    //         latitude: "26.949498",
-                    //         longitude: "75.710887"
-                    //     },
-                    //     webhook_url: "https://api.zanithpay.com/apiAdmin/v1/payin/callBackJiffy"
-                    // }
-
-                    // const headers = {
-                    //     AuthToken: process.env.JIFFY_WALLET_AUTH_TOKEN,
-                    //     IpAddress: process.env.VAULTAGE_IP_ADDRESS
-                    // }
-
-                    // const { data } = await axios.post(API_URL, jiffyWalletPayload, { headers });
-                    // let apiResponse = {}
-                    // if (data.response?.data === null) {
-                    //     qrData.callBackStatus = "Failed";
-                    //     qrData.save();
-                    //     apiResponse = {
-                    //         status_msg: data.response?.message || "FAILED",
-                    //         status: 500,
-                    //         trxID: trxId,
-                    //     }
-                    // } else if (data.response.data !== null) {
-                    //     const metaData = data.response?.data?.data
-                    //     qrData.qrIntent = metaData?.payload?.url;
-                    //     qrData.refId = metaData?.apx_payment_id;
-                    //     qrData.save();
-                    //     apiResponse.status_msg = metaData?.meta?.message;
-                    //     apiResponse.status = 200;
-                    //     apiResponse.qr = metaData?.payload?.url;
-                    //     apiResponse.trxID = trxId;
-                    // }
-                    return res.status(apiResponse.status || 500).json(new ApiResponse(apiResponse.status || 500, apiResponse, undefined, apiResponse.status !== 200 ? "Failed" : "Success"));
+                    // Send response
+                    return res.status(200).json(new ApiResponse(200, dataApiResponse))
                 } catch (error) {
-                    console.log(" payIn.controller.js:958 ~ generatePayment ~ error:", error);
-                    return res.status(500).json({ message: "Failed", data: "trx Id duplicate Find !" })
+                    if (error.code == 11000) {
+                        return res.status(500).json({ message: "Failed", data: "trx Id duplicate Find !" })
+                    } else {
+                        return res.status(500).json({ message: "Failed", data: error.message || "Internel Server Error !" })
+                    }
                 }
             }
             case "ServerMaintenance":

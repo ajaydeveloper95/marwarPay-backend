@@ -47,3 +47,26 @@ export class AESUtils {
         return data;
     }
 }
+
+export function airPayencryptText(plainText, key) {
+    const iv = crypto.randomBytes(8).toString("hex");
+    const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
+    let encrypted = cipher.update(plainText, "utf8", "base64");
+    encrypted += cipher.final("base64");
+    const encryptedText = iv + encrypted;
+    return encryptedText;
+}
+
+export function airPaydecryptText(encrypted, key) {
+                        const key1 = key;
+                        const iv1 = encrypted.substring(0, 16);
+                        const data = encrypted.substring(16);
+                        const decipher = crypto.createDecipheriv("aes-256-cbc", key1, iv1);
+                        let decrypted = decipher.update(
+                            Buffer.from(data, "base64"),
+                            "binary",
+                            "utf8"
+                        );
+                        decrypted += decipher.final("utf8");
+                        return decrypted ? decrypted : encrypted;
+                    }
