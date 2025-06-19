@@ -54,6 +54,6 @@ router.post("/vaultageCallBack", (req, res, next) => {
 });
 router.post("/sambhavpayCallback", callBackSambhavPay);
 
-router.post("/callBackAirpay", callbackAirpay)
+router.post("/ipnwebhook", callbackAirpay)
 
 export default router;
