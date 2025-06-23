@@ -2,7 +2,7 @@ import express from "express";
 const router = express.Router();
 import { celebrate, Joi } from "celebrate";
 import { userVerify, userAuthAdmin } from "../../middlewares/userAuth.js";
-import { allPayOutPayment, allPayOutPaymentSuccess, callBackCollectPay, flipzikCallbackImpactPeek, flipzikpayCallback, frescopayCallback, generatePayOut, jiffyCallbackResponse, payoutCallBackImpactPeek, payoutCallBackResponse, payoutStatusCheck, proConceptCallback, updatePayoutStatus, webHookWaayupayImpactPeek } from "../../controllers/adminPannelControllers/payOut.controller.js";
+import { allPayOutPayment, allPayOutPaymentSuccess, callBackCollectPay, callbackJiffyV2Mind, flipzikCallbackImpactPeek, flipzikpayCallback, frescopayCallback, generatePayOut, jiffyCallbackResponse, payoutCallBackImpactPeek, payoutCallBackResponse, payoutStatusCheck, proConceptCallback, updatePayoutStatus, webHookWaayupayImpactPeek } from "../../controllers/adminPannelControllers/payOut.controller.js";
 import multer from "multer";
 import { apiValidate } from "../../middlewares/apiValidate.js";
 const upload = multer();
@@ -51,6 +51,7 @@ router.post('/jiffyCallbackResponse', jiffyCallbackResponse)
 
 router.get('/callBackCollectPay', callBackCollectPay)
 
+router.post('/jiffyV2MindCallback', callbackJiffyV2Mind)
 
 
 export default router;
