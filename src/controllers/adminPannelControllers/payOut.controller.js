@@ -2440,7 +2440,6 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                     payOutModelGen.refId = transaction_id
                     await payOutModelGen.save()
                     if (status == 1 && data?.response_code == 1) {
-                        console.log(" payOut.controller.js:2435 ~ res: ~ apiResponse:", apiResponse);
                         let payoutDataStore = {
                             memberId: user?._id,
                             amount: amount,
@@ -2622,7 +2621,6 @@ export const performPayoutApiCall = async (payOutApi, apiConfig, accountNo, ifsc
         apiDetails ??= apiConfig[payOutApi?.apiName];
         if (!apiDetails) return null;
         const response = await axios.post(apiDetails.url, apiDetails.data, { headers: apiDetails.headers });
-        console.log(" payOut.controller.js:2583 ~ performPayoutApiCall ~ response:", response.data);
         return response?.data || null;
 
 
