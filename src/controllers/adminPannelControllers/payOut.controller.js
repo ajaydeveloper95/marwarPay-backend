@@ -2509,6 +2509,28 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             }
 
                             await walletModel.create([walletModelDataStore], opts)
+
+                            try {
+                                let userCallBackResp = await callBackResponse.aggregate([{ $match: { memberId: user._id } }]);
+                                if (userCallBackResp.length === 1) {
+                                    let payOutUserCallBackURL = userCallBackResp[0]?.payOutCallBackUrl;
+                                    const config = {
+                                        headers: {
+                                            'Content-Type': 'application/json'
+                                        }
+                                    };
+                                    let shareObjData = {
+                                        "status": "FAILED",
+                                        "txnid": trxId,
+                                        "optxid": "",
+                                        "amount": amount,
+                                        "rrn": ""
+                                    }
+                                    await axios.post(payOutUserCallBackURL, shareObjData, config)
+                                }
+                            } catch (error) {
+                                null
+                            } x
                             // Commit the transaction
                             await walletAddsession.commitTransaction();
                             // console.log('Transaction committed successfully');
@@ -4218,7 +4240,7 @@ export const callbackJiffyV2Mind = asyncHandler(async (req, res) => {
 
         const dataObject = { txnid: Data?.ref_id, optxid: Data?.transaction_id, rrn: Data?.utr, status: Data?.response_code }
 
-        let getDocoment = await payOutModelGenerate.findOne({  trxId: dataObject?.txnid });
+        let getDocoment = await payOutModelGenerate.findOne({ trxId: dataObject?.txnid });
 
         if (getDocoment?.isSuccess === "Success" || getDocoment?.isSuccess === "Failed") {
             return res.status(200).json({ message: "Failed", data: `Trx Status Already ${getDocoment?.isSuccess}` })
