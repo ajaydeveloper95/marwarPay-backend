@@ -2546,20 +2546,20 @@ export const generatePayOut = asyncHandler(async (req, res) => {
 
                         payOutModelGen.isSuccess = "Failed"
                         await await payOutModelGen.save()
-                        let userREspSend2 = {
-                            statusCode: StatusCode == 1 ? 0 : 2,
-                            status: StatusCode == 1 ? 0 : 2,
+                        let userREspSend = {
+                            statusCode: status == 1 ? utr !== "" ? 1 : 2 : 0,
+                            status: status == 1 ? utr !== "" ? 1 : 2 : 0,
                             trxId: trxId || 0,
-                            opt_msg: StatusMessage || "null"
+                            opt_msg: message || "null"
                         }
-                        return { message: "Failed", data: userREspSend2 }
+                        return { message: "Failed", data: userREspSend }
                     }
                     else {
                         let userREspSend = {
                             statusCode: 2,
                             status: 2,
                             trxId: trxId || 0,
-                            opt_msg: StatusMessage || "Payout initiated, awaiting response from banking side."
+                            opt_msg: message || "Payout initiated, awaiting response from banking side."
                         }
                         return new ApiResponse(200, userREspSend)
                     }
