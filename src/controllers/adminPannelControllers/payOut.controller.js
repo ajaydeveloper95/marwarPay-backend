@@ -2530,7 +2530,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                                 }
                             } catch (error) {
                                 null
-                            } x
+                            }
                             // Commit the transaction
                             await walletAddsession.commitTransaction();
                             // console.log('Transaction committed successfully');
