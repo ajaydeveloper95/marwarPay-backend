@@ -888,7 +888,57 @@ export const generatePayment = async (req, res) => {
                         emailId: email,
                         mobileNo: mobileNumber,
                         customerName: name,
-                        api_url
+                        api_url,
+                        mid: process.env.SAMBHAVPAY_MID,
+                        secretKey: process.env.SAMBHAVPAY_SECRET_KEY,
+                        saltKey: process.env.SAMBHAVPAY_SALT_KEY
+                    }
+
+                    const response = await sambhavPayin(sambhavPayload);
+
+                    let apiResponse = {}
+                    if (response?.status === false) {
+                        qrData.callBackStatus = "Failed";
+                        qrData.save();
+                        apiResponse = {
+                            status_msg: response?.message || "FAILED",
+                            status: 500,
+                            trxID: trxId,
+                        }
+                    } else {
+                        qrData.qrIntent = response?.upiString;
+                        qrData.refId = response?.txnRefNo;
+                        qrData.save();
+                        apiResponse.status_msg = response?.respMessage;
+                        apiResponse.status = 200;
+                        apiResponse.qr = response?.upiString;
+                        apiResponse.trxID = trxId;
+                    }
+                    return res.status(apiResponse.status || 500).json(new ApiResponse(apiResponse.status || 500, apiResponse, undefined, response?.respMessage === "FAILURE" ? "Failed" : "Success"));
+                } catch (error) {
+                    console.log(" payIn.controller.js:796 ~ generatePayment ~ error:", error);
+                    return res.status(500).json({ message: "Failed", data: "trx Id duplicate Find !" })
+                }
+            case "sambhavPayInESRGMG":
+                try {
+                    const qrData = await qrGenerationModel.create({
+                        memberId: user[0]?._id,
+                        name,
+                        amount,
+                        trxId,
+                        pannelUse: apiSwitchApiOption
+                    });
+                    const api_url = user[0]?.payInApi?.apiURL
+                    const sambhavPayload = {
+                        orderNo: trxId,
+                        amount: String(amount),
+                        emailId: email,
+                        mobileNo: mobileNumber,
+                        customerName: name,
+                        api_url,
+                        mid: process.env.SAMBHAVPAY_ESRGMG_MID,
+                        secretKey: process.env.SAMBHAVPAY_ESRGMG_SECRET_KEY,
+                        saltKey: process.env.SAMBHAVPAY_ESRGMG_SALT_KEY
                     }
 
                     const response = await sambhavPayin(sambhavPayload);
@@ -2405,12 +2455,12 @@ export const callBackSambhavPay = asyncHandler(async (req, res) => {
 
 });
 
-async function sambhavPayin({ orderNo, amount, currency = "INR", txnReqType = "S", emailId, mobileNo, transactionMethod = "UPI", customerName, optional1 = "intent", api_url }) {
+async function sambhavPayin({ orderNo, amount, currency = "INR", txnReqType = "S", emailId, mobileNo, transactionMethod = "UPI", customerName, optional1 = "intent", api_url, mid, secretKey, saltKey }) {
     const sp = new SambhavPay({ api_url });
     const response = await sp.initiatePayment({
-        mid: process.env.SAMBHAVPAY_MID,
-        secretKey: process.env.SAMBHAVPAY_SECRET_KEY,
-        saltKey: process.env.SAMBHAVPAY_SALT_KEY,
+        mid,
+        secretKey,
+        saltKey,
         orderNo,
         amount,
         currency,
