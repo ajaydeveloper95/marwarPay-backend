@@ -2692,13 +2692,7 @@ export async function callbackAirpay(req, res) {
 
 
 async function respHandler(jsonData) {
-    // const responseData = jsonData;
-    const responseData = {
-        "respCode": "0",
-        "respMsg": "Success",
-        "data": "{\"respUrl\":\"\",\"mid\":\"900000000000394\",\"respData\":\"UlBoQ1o2JOnWx8xZ2ZtrYwfe5tkyYpfo3ee6nGizybSulzfAyUjo+0ucauhPYLAT8RidFCDZsqj4mwb6XHygxwG3Oj94Ec8NATJdDjofJQfkOH8CiSKnBgIqqluJnfxAyMaak+nyInkpDt+jx4CI2yCjFqvwCNV3WVK6DQvLQ10rZ3RbO4UIsL9xwD7qTGAgyv23mObmtrKRxKs9C4r1LIbcoTX9eoKpfZUdRySdHJmNSeW3TS8lHTzMdJo8ariAonRkNLcCpeESZgIplKI1GxPJNPjNTgDH+56C1mYv/5g=\",\"checkSum\":\"CF30F50D4B43B13414F8AA38C252320C2D43BA98AB9FFBEEC01E813CEEBFD58EB52F9CD129F2F6941F0F6F538116ACDAF75287CCC618BDA42AD5C70D2F8B3573\"}"
-    }
-
+    const responseData = jsonData;
     if (responseData?.respCode == 1) {
         // res.send(responseData?.data?.ResponseMsg);
     } else {
@@ -2716,9 +2710,7 @@ async function respHandler(jsonData) {
         const checkSum = data?.checkSum;
 
         const response = SambhavPayin.getResponse(respData, mid, checkSum);
-        console.log(" payIn.controller.js:2714 ~ respHandler ~ response:", response);
-
-
+        return JSON.parse(response)
         // res.render("response_data", { response: JSON.parse(response) });
     }
 }

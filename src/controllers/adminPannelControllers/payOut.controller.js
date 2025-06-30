@@ -2559,6 +2559,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                 res: async (apiResponse) => {
 
                     const { status, message, data } = apiResponse;
+                    console.log("apiRes", apiResponse)
                     const { response_code, subStatus, ref_id, transaction_id, utr, payment_mode, amount, payment_remark, account_number, ifsc, beneficiaryName } = data;
 
 
