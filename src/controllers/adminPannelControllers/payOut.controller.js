@@ -396,6 +396,12 @@ function generateSignatureFlipImpact(timestamp, body, path, queryString = '', me
     return hmac.digest('hex');
 }
 
+function generateSignatureFlipMindmatrix(timestamp, body, path, queryString = '', method = 'POST') {
+    const hmac = crypto.createHmac('sha512', process.env.MINDMATRIX_FLIPZIK_SECRET_KEY);
+    hmac.update(method + "\n" + path + "\n" + queryString + "\n" + body + "\n" + timestamp + "\n");
+    return hmac.digest('hex');
+}
+
 export const allPayOutPaymentSuccess = asyncHandler(async (req, res) => {
     let { page = 1, limit = 25, keyword = "", startDate, endDate } = req.query;
     page = Number(page) || 1;
@@ -653,6 +659,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
         const path = "/api/v1/payout/process";
         const signature = generateSignature(timestamp, requestData, path, '', 'POST');
         const signatureFlipImpact = generateSignatureFlipImpact(timestamp, requestData, path, '', 'POST');
+        const signatureFlipMindmatrix = generateSignatureFlipMindmatrix(timestamp, requestData, path, '', 'POST');
 
         const headerSecrets = await AESUtils.EncryptRequest(HeaderObj, process.env.ENC_KEY)
         const BodyRequestEnc = await AESUtils.EncryptRequest(BodyObj, process.env.ENC_KEY)
@@ -1618,6 +1625,124 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                     }
                 }
             },
+            flipzikPayoutMindMatrix: {
+                url: payOutApi.apiURL,
+                headers: {
+                    "access_key": process.env.MINDMATRIX_FLIPZIK_ACCESS_KEY,
+                    "signature": signatureFlipMindmatrix,
+                    "X-Timestamp": timestamp,
+                    "Content-Type": "application/json"
+                },
+                data: requestData,
+                res: async (apiResponse) => {
+                    const { data, success } = apiResponse;
+                    console.log("flipzikPayoutMindMatrix data:", apiResponse);
+
+                    if (!success) {
+                        return { message: "Failed", data: `Bank server is down.` }
+                    }
+
+                    if (data?.status === "Success" && data?.master_status === "Success") {
+                        // If successful, store the payout data
+                        let payoutDataStore = {
+                            memberId: user?._id,
+                            amount: amount,
+                            chargeAmount: chargeAmount,
+                            finalAmount: finalAmountDeduct,
+                            bankRRN: data?.bank_reference_id,
+                            trxId: data?.merchant_order_id,
+                            optxId: data?.id,
+                            isSuccess: "Success"
+                        }
+                        await payOutModel.create(payoutDataStore);
+                        payOutModelGen.isSuccess = "Success"
+                        await payOutModelGen.save()
+
+                        // Call back to notify the user
+                        let callBackBody = {
+                            optxid: String(data?.id),
+                            status: "SUCCESS",
+                            txnid: data?.merchant_order_id,
+                            amount: String(amount),
+                            rrn: data?.bank_reference_id,
+                        }
+
+                        customCallBackPayoutUser(user?._id, callBackBody)
+
+                        let userRespSend = {
+                            statusCode: data?.status === "Success" ? 1 : 2 || 0,
+                            status: data?.status === "Success" ? 1 : 2 || 0,
+                            trxId: data?.merchant_order_id || 0,
+                            opt_msg: data?.acquirer_message || "null"
+                        }
+                        return new ApiResponse(200, userRespSend)
+                    } else if (data?.master_status === "Failed") {
+                        const release = await genPayoutMutex.acquire();
+                        const walletAddsession = await userDB.startSession();
+                        const transactionOptions = {
+                            readConcern: { level: 'linearizable' },
+                            writeConcern: { w: 'majority' },
+                            readPreference: { mode: 'primary' },
+                            maxTimeMS: 1500
+                        };
+                        // Handle failure: update wallet and store e-wallet transaction
+                        try {
+                            walletAddsession.startTransaction(transactionOptions);
+                            const opts = { walletAddsession };
+
+                            // update wallet 
+                            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct, EwalletFundLock: + finalAmountDeduct } }, {
+                                returnDocument: 'after',
+                                walletAddsession
+                            })
+
+                            let afterAmount = userWallet?.EwalletBalance
+                            let beforeAmount = userWallet?.EwalletBalance - finalAmountDeduct;
+
+                            // ewallet store 
+                            let walletModelDataStore = {
+                                memberId: user?._id,
+                                transactionType: "Cr.",
+                                transactionAmount: amount,
+                                beforeAmount: beforeAmount,
+                                chargeAmount: chargeAmount,
+                                afterAmount: afterAmount,
+                                description: `Successfully Cr. amount: ${Number(finalAmountDeduct)} with transaction Id: ${trxId}`,
+                                transactionStatus: "Success",
+                            }
+
+                            await walletModel.create([walletModelDataStore], opts)
+                            payOutModelGen.isSuccess = "Failed"
+                            await await payOutModelGen.save()
+                            // Commit the transaction
+                            await walletAddsession.commitTransaction();
+                            // console.log('Transaction committed successfully');
+                        } catch (error) {
+                            await walletAddsession.abortTransaction();
+                        }
+                        finally {
+                            walletAddsession.endSession();
+                            release()
+                        }
+
+                        let userRespSend2 = {
+                            statusCode: data?.status === "Failed" ? 0 : 2 || 0,
+                            status: data?.status === "Failed" ? 0 : 2 || 0,
+                            trxId: trxId || 0,
+                            opt_msg: data?.acquirer_message || "null"
+                        }
+                        return { message: "Failed", data: userRespSend2 }
+                    } else {
+                        let userRespSend2 = {
+                            statusCode: data?.status === "Pending" ? 2 : 0 || 0,
+                            status: data?.status === "Pending" ? 2 : 0 || 0,
+                            trxId: trxId || 0,
+                            opt_msg: data?.acquirer_message || "null"
+                        }
+                        return new ApiResponse(200, userRespSend2)
+                    }
+                }
+            },
             proConceptPayoutApi: {
                 url: payOutApi?.apiURL,
                 headers: {
@@ -2439,7 +2564,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
 
                     payOutModelGen.refId = transaction_id
                     await payOutModelGen.save()
-                    if (status == 1 && data?.response_code == 1) {
+                    if (status == 1 && response_code == 1) {
                         let payoutDataStore = {
                             memberId: user?._id,
                             amount: amount,
@@ -2471,7 +2596,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                         }
                         return new ApiResponse(200, userREspSend)
                     }
-                    else if (status == "0") {
+                    else if (status == "0" || (response_code == 0 && subStatus == "100")) {
                         const release = await genPayoutMutex.acquire();
                         // db locking with added amount 
                         const walletAddsession = await userDB.startSession();
@@ -2647,8 +2772,6 @@ export const performPayoutApiCall = async (payOutApi, apiConfig, accountNo, ifsc
 
 
     } catch (error) {
-        console.log(" payOut.controller.js:2314 ~ performPayoutApiCall ~ error:", error);
-
         // console.log(error, "error")
         if (error?.response?.data?.fault?.detail?.errorcode === "steps.accesscontrol.IPDeniedAccess") {
             return "Ip validation Failed"

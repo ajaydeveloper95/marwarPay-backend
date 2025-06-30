@@ -19,6 +19,7 @@ import packageModel from "../../models/package.model.js";
 import payInChargeModel from "../../models/payInCharge.model.js";
 import crypto from "crypto"
 import { airPaydecryptText, airPayencryptText } from "../../utils/CryptoEnc.js";
+import SambhavPayin from '../../utils/SambhavPay.js'
 
 const transactionMutex = new Mutex();
 // const generatePayinMutex = new Mutex();
@@ -941,7 +942,9 @@ export const generatePayment = async (req, res) => {
                         saltKey: process.env.SAMBHAVPAY_ESRGMG_SALT_KEY
                     }
 
-                    const response = await sambhavPayin(sambhavPayload);
+                    const response = await sambhavPayin2(sambhavPayload);
+                    console.log(" payIn.controller.js:945 ~ generatePayment ~ response:", response);
+
 
                     let apiResponse = {}
                     if (response?.status === false) {
@@ -2499,6 +2502,46 @@ async function sambhavPayin({ orderNo, amount, currency = "INR", txnReqType = "S
     }
 }
 
+async function sambhavPayin2({ orderNo, amount, currency = "INR", txnReqType = "S", emailId, mobileNo, transactionMethod = "UPI", customerName, optional1 = "intent", api_url, mid, secretKey, saltKey }) {
+    const result = await SambhavPayin.initiatePayment({
+        mid: process.env.SAMBHAVPAY_ESRGMG_MID,
+        secretKey: process.env.SAMBHAVPAY_ESRGMG_SECRET_KEY,
+        saltKey: process.env.SAMBHAVPAY_ESRGMG_SALT_KEY,
+        orderNo: orderNo,
+        amount: amount,
+        currency: currency,
+        txnReqType: txnReqType,
+        undefinedField1: "",
+        undefinedField2: "",
+        undefinedField3: "",
+        undefinedField4: "",
+        undefinedField5: "",
+        undefinedField6: "",
+        undefinedField7: "",
+        undefinedField8: "",
+        undefinedField9: "",
+        undefinedField10: "",
+        emailId: emailId,
+        mobileNo: mobileNo,
+        transactionMethod: transactionMethod,
+        bankCode: "",
+        vpa: "",
+        cardNumber: "",
+        expiryDate: "",
+        cvv: "",
+        customerName: customerName,
+        respUrl: "",
+        optional1: optional1,
+    })
+    console.log(" payIn.controller.js:2536 ~ sambhavPayin2 ~ result:", result);
+
+    if (result?.error) {
+        throw new Error("Transaction Failed");
+    } else {
+        return respHandler(result, api_url);
+    }
+}
+
 export async function callbackAirpay(req, res) {
     // const release = await transactionMutex.acquire();
     try {
@@ -2647,31 +2690,64 @@ export async function callbackAirpay(req, res) {
     // }
 }
 
-async function respHandler(jsonData, api_url) {
-    const responseData = jsonData;
+
+async function respHandler(jsonData) {
+    // const responseData = jsonData;
+    const responseData = {
+        "respCode": "0",
+        "respMsg": "Success",
+        "data": "{\"respUrl\":\"\",\"mid\":\"900000000000394\",\"respData\":\"UlBoQ1o2JOnWx8xZ2ZtrYwfe5tkyYpfo3ee6nGizybSulzfAyUjo+0ucauhPYLAT8RidFCDZsqj4mwb6XHygxwG3Oj94Ec8NATJdDjofJQfkOH8CiSKnBgIqqluJnfxAyMaak+nyInkpDt+jx4CI2yCjFqvwCNV3WVK6DQvLQ10rZ3RbO4UIsL9xwD7qTGAgyv23mObmtrKRxKs9C4r1LIbcoTX9eoKpfZUdRySdHJmNSeW3TS8lHTzMdJo8ariAonRkNLcCpeESZgIplKI1GxPJNPjNTgDH+56C1mYv/5g=\",\"checkSum\":\"CF30F50D4B43B13414F8AA38C252320C2D43BA98AB9FFBEEC01E813CEEBFD58EB52F9CD129F2F6941F0F6F538116ACDAF75287CCC618BDA42AD5C70D2F8B3573\"}"
+    }
 
     if (responseData?.respCode == 1) {
-        return {
-            status: false,
-            message: responseData?.data || "Transaction Failed",
-        }
+        // res.send(responseData?.data?.ResponseMsg);
     } else {
-        const mid = process.env.SAMBHAVPAY_MID;
-        const secretKey = process.env.SAMBHAVPAY_SECRET_KEY;
-        const saltKey = process.env.SAMBHAVPAY_SALT_KEY;
+        const mid = process.env.SAMBHAVPAY_ESRGMG_MID;
+        // const secretKey = process.env.SAMBHAVPAY_SECRET_KEY;
+        // const saltKey = process.env.SAMBHAVPAY_SALT_KEY;
 
-        const sp = new SambhavPay({ api_url });
-        sp._mid = mid;
-        sp._secretKey = secretKey;
-        sp._saltKey = saltKey;
+        // const sp = new SambhavPay();
+        // sp._mid = mid;
+        // sp._secretKey = secretKey;
+        // sp._saltKey = saltKey;
 
         const data = JSON.parse(responseData?.data);
         const respData = data?.respData;
         const checkSum = data?.checkSum;
 
-        const response = sp.getResponse(respData, mid, checkSum);
-        console.log(" payIn.controller.js:1964 ~ respHandler ~ response:", JSON.parse(response));
+        const response = SambhavPayin.getResponse(respData, mid, checkSum);
+        console.log(" payIn.controller.js:2714 ~ respHandler ~ response:", response);
 
-        return JSON.parse(response);
+
+        // res.render("response_data", { response: JSON.parse(response) });
     }
 }
+
+// async function respHandler(jsonData, api_url) {
+//     const responseData = jsonData;
+
+//     if (responseData?.respCode == 1) {
+//         return {
+//             status: false,
+//             message: responseData?.data || "Transaction Failed",
+//         }
+//     } else {
+//         const mid = process.env.SAMBHAVPAY_MID;
+//         const secretKey = process.env.SAMBHAVPAY_SECRET_KEY;
+//         const saltKey = process.env.SAMBHAVPAY_SALT_KEY;
+
+//         const sp = new SambhavPay({ api_url });
+//         sp._mid = mid;
+//         sp._secretKey = secretKey;
+//         sp._saltKey = saltKey;
+
+//         const data = JSON.parse(responseData?.data);
+//         const respData = data?.respData;
+//         const checkSum = data?.checkSum;
+
+//         const response = sp.getResponse(respData, mid, checkSum);
+//         console.log(" payIn.controller.js:1964 ~ respHandler ~ response:", JSON.parse(response));
+
+//         return JSON.parse(response);
+//     }
+// }
