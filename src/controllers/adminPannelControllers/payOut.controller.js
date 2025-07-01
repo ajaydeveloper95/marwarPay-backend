@@ -1633,7 +1633,17 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                     "X-Timestamp": timestamp,
                     "Content-Type": "application/json"
                 },
-                data: requestData,
+                data: {
+                    "address": "JAIPUR VASALI SECTOR-12",
+                    "payment_type": 3,
+                    "amount": amount * 100,
+                    "name": accountHolderName,
+                    "email": "abc@gmail.com",
+                    "mobile_number": mobileNumber,
+                    "account_number": accountNumber,
+                    "ifsc_code": ifscCode,
+                    "merchant_order_id": trxId
+                },
                 res: async (apiResponse) => {
                     const { data, success } = apiResponse;
                     console.log("flipzikPayoutMindMatrix data:", apiResponse);
