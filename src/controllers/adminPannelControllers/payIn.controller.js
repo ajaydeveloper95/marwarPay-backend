@@ -2344,9 +2344,9 @@ export const callBackSambhavPay = asyncHandler(async (req, res) => {
         const trx = await qrGenerationModel.findOne({ trxId: orderId });
 
         if (!trx || trx.callBackStatus !== "Pending") {
-            return res.status(400).json({
-                message: "Failed",
-                data: `Transaction already processed or not created: ${trx?.callBackStatus}`
+            return res.status(200).json({
+                message: "SUCCESS",
+                status: "200"
             });
         }
         trx.callBackStatus = "Success";
