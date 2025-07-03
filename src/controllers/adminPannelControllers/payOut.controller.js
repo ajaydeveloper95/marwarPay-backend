@@ -1521,14 +1521,6 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                 data: requestData,
                 res: async (apiResponse) => {
                     const { data, success } = apiResponse;
-                    // await Log.create({
-                    //     method: "POST",
-                    //     url: "flipzik payout",
-                    //     status: success,
-                    //     requestBody: requestData,
-                    //     responseBody: apiResponse,
-                    //     description: ["Manual success log"],
-                    // });
                     if (!success) {
                         return { message: "Failed", data: `Bank server is down.` }
                     }
@@ -1677,7 +1669,11 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             optxId: data?.id,
                             isSuccess: "Success"
                         }
-                        await payOutModel.create(payoutDataStore);
+                        try {
+                            await payOutModel.create(payoutDataStore);
+                        } catch (error) {
+                            null
+                        }
                         payOutModelGen.isSuccess = "Success"
                         await payOutModelGen.save()
 
