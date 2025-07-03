@@ -15,6 +15,7 @@ import mongoose from "mongoose";
 import { Parser } from "json2csv";
 import crypto from "crypto";
 import BeneficiaryModel from "../../models/beneficiary.model.js";
+import Log from "../../models/Logs.model.js";
 
 
 const genPayoutMutex = new Mutex();
@@ -1520,12 +1521,22 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                 data: requestData,
                 res: async (apiResponse) => {
                     const { data, success } = apiResponse;
+                    await Log.create({
+                        method: "POST",
+                        url: "flipzik payout",
+                        status: success,
+                        requestBody: requestData,
+                        responseBody: apiResponse,
+                        description: ["Manual success log"],
+                    });
                     if (!success) {
                         return { message: "Failed", data: `Bank server is down.` }
                     }
 
                     if (data?.status === "Success" && data?.master_status === "Success") {
                         // If successful, store the payout data
+                        payOutModelGen.isSuccess = "Success"
+                        await payOutModelGen.save()
                         let payoutDataStore = {
                             memberId: user?._id,
                             amount: amount,
@@ -1536,9 +1547,11 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             optxId: data?.id,
                             isSuccess: "Success"
                         }
-                        await payOutModel.create(payoutDataStore);
-                        payOutModelGen.isSuccess = "Success"
-                        await payOutModelGen.save()
+                        try {
+                            await payOutModel.create(payoutDataStore);
+                        } catch (error) {
+                            null
+                        }
 
                         // Call back to notify the user
                         let callBackBody = {
@@ -2783,6 +2796,8 @@ export const performPayoutApiCall = async (payOutApi, apiConfig, accountNo, ifsc
 
 
     } catch (error) {
+        console.log(" payOut.controller.js:2786 ~ performPayoutApiCall ~ error:", error?.response?.data);
+
         // console.log(error, "error")
         if (error?.response?.data?.fault?.detail?.errorcode === "steps.accesscontrol.IPDeniedAccess") {
             return "Ip validation Failed"
