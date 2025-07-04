@@ -818,9 +818,11 @@ export const generatePayment = async (req, res) => {
                     }
                     return res.status(vaultageResponse?.responseCode || 500).json(new ApiResponse(vaultageResponse?.responseCode || 500, apiResponse, undefined, vaultageResponse?.message === "SUCCESS" ? "Success" : "Failed"));
                 } catch (error) {
-                    console.log(" payIn.controller.js:796 ~ generatePayment ~ error:", error);
-
-                    return res.status(500).json({ message: "Failed", data: "trx Id duplicate Find !" })
+                    if (error.code == 11000) {
+                        return res.status(500).json({ message: "Failed", data: "trx Id duplicate Find !" })
+                    } else {
+                        return res.status(500).json({ message: "Failed", data: error.message || "Internel Server Error !" })
+                    }
                 }
             case "vaultagePayInTest":
                 try {
@@ -869,9 +871,11 @@ export const generatePayment = async (req, res) => {
                     }
                     return res.status(vaultageResponse?.responseCode || 500).json(new ApiResponse(vaultageResponse?.responseCode || 500, apiResponse, undefined, vaultageResponse?.message === "SUCCESS" ? "Success" : "Failed"));
                 } catch (error) {
-                    console.log(" payIn.controller.js:796 ~ generatePayment ~ error:", error);
-
-                    return res.status(500).json({ message: "Failed", data: "trx Id duplicate Find !" })
+                    if (error.code == 11000) {
+                        return res.status(500).json({ message: "Failed", data: "trx Id duplicate Find !" })
+                    } else {
+                        return res.status(500).json({ message: "Failed", data: error.message || "Internel Server Error !" })
+                    }
                 }
             case "sambhavPayIn":
                 try {
@@ -917,8 +921,11 @@ export const generatePayment = async (req, res) => {
                     }
                     return res.status(apiResponse.status || 500).json(new ApiResponse(apiResponse.status || 500, apiResponse, undefined, response?.respMessage === "FAILURE" ? "Failed" : "Success"));
                 } catch (error) {
-                    console.log(" payIn.controller.js:796 ~ generatePayment ~ error:", error);
-                    return res.status(500).json({ message: "Failed", data: "trx Id duplicate Find !" })
+                    if (error.code == 11000) {
+                        return res.status(500).json({ message: "Failed", data: "trx Id duplicate Find !" })
+                    } else {
+                        return res.status(500).json({ message: "Failed", data: error.message || "Internel Server Error !" })
+                    }
                 }
             case "sambhavPayInESRGMG":
                 try {
@@ -966,8 +973,11 @@ export const generatePayment = async (req, res) => {
                     }
                     return res.status(apiResponse.status || 500).json(new ApiResponse(apiResponse.status || 500, apiResponse, undefined, response?.respMessage === "FAILURE" ? "Failed" : "Success"));
                 } catch (error) {
-                    console.log(" payIn.controller.js:796 ~ generatePayment ~ error:", error);
-                    return res.status(500).json({ message: "Failed", data: "trx Id duplicate Find !" })
+                    if (error.code == 11000) {
+                        return res.status(500).json({ message: "Failed", data: "trx Id duplicate Find !" })
+                    } else {
+                        return res.status(500).json({ message: "Failed", data: error.message || "Internel Server Error !" })
+                    }
                 }
             case "jiffyWalletPayinMind": {
                 try {

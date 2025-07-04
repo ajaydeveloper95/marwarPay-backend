@@ -321,7 +321,7 @@ async function processWaayuPayOutFnMindMatrix(item, indexNumber) {
 
 let tempTrxIds = []
 function scheduleFlipzikImpactPeek() {
-    cron.schedule('*/2 * * * *', async () => {
+    cron.schedule('* * * * *', async () => {
         const release = await transactionMutexImpactFlipZik.acquire();
         const threeHoursAgo = new Date();
         threeHoursAgo.setHours(threeHoursAgo.getHours() - 3)
@@ -339,7 +339,7 @@ function scheduleFlipzikImpactPeek() {
                 GetData.forEach(async (item) => {
                     tempTrxIds.push(item?.trxId)
                     console.log(item)
-                    // await processFlipzikPayout(item)
+                    await processFlipzikPayout(item)
                 })
             } else {
                 console.log("No Pending Found In Range !")
@@ -362,7 +362,8 @@ function generateSignature(timestamp, body, path, queryString = '', method = 'PO
 
 async function processFlipzikPayout(item) {
     const data = await flipzikStatusCheckImpactPeek(item.trxId)
-
+    console.log(" processFlipzikPayout ~ data:", data);
+    return
     const session = await userDB.startSession({ readPreference: 'primary', readConcern: { level: "majority" }, writeConcern: { w: "majority" } });
     const release = await transactionMutex.acquire();
     try {
@@ -508,6 +509,7 @@ async function flipzikStatusCheckImpactPeek(payout_id) {
         return response?.data;
 
     } catch (error) {
+        console.log(" flipzikStatusCheckImpactPeek ~ error:", error);
         // console.log("error in process flipzik=>", error)
         const errrD = error?.response?.data?.message
         const errrDF = error?.response?.data?.detail
