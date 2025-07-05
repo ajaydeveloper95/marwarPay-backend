@@ -719,7 +719,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                                 await walletAddsession.commitTransaction();
                                 // console.log('Transaction committed successfully');
                             } catch (error) {
-                                console.log(error)
+                                // console.log(error)
                                 await walletAddsession.abortTransaction();
                                 // console.error('Transaction aborted due to error:', error);
                             }
@@ -741,9 +741,9 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                         let BankJsonConvt = await JSON.parse(BodyResponceDec);
 
                         // if Success  
-                        console.log("Success", bankServerResp?.subStatus, BankJsonConvt, "bank su status end")
+                        // console.log("Success", bankServerResp?.subStatus, BankJsonConvt, "bank su status end")
                         if (BankJsonConvt?.subStatus === 0) {
-                            console.log("Inside the Bank substatus 0 or Ssccess", BankJsonConvt.subStatus, typeof BankJsonConvt?.subStatus)
+                            // console.log("Inside the Bank substatus 0 or Ssccess", BankJsonConvt.subStatus, typeof BankJsonConvt?.subStatus)
                             // on Success
                             let payoutDataStore = {
                                 memberId: user?._id,
@@ -766,12 +766,12 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                                 opt_msg: BankJsonConvt?.statusDesc
                             }
 
-                            console.log(userRespPayOut, "user resp send", userRespPayOut)
+                            // console.log(userRespPayOut, "user resp send", userRespPayOut)
                             payoutCallBackResponse({ body: userRespPayOut })
 
                             return new ApiResponse(200, userRespPayOut)
                         } else {
-                            console.log("insdie the subStatus = -1-2,2 ", bankServerResp)
+                            // console.log("insdie the subStatus = -1-2,2 ", bankServerResp)
 
                             const release = await genPayoutMutex.acquire();
                             const walletAddsession = await userDB.startSession();
@@ -809,7 +809,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                                 await walletAddsession.commitTransaction();
                                 // console.log('Transaction committed successfully');
                             } catch (error) {
-                                console.log(error)
+                                // console.log(error)
                                 await walletAddsession.abortTransaction();
                                 // console.error('Transaction aborted due to error:', error);
                             }
@@ -830,8 +830,8 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                         }
                         // console.log("Final console", BankJsonConvt)
                     } catch (error) {
-                        console.log("server error section in error section")
-                        console.log(error)
+                        // console.log("server error section in error section")
+                        // console.log(error)
                         payOutModelGen.isSuccess = "Failed";
                         await payOutModelGen.save();
                         let respSend = {
@@ -1372,7 +1372,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             await walletAddsession.commitTransaction();
                             // console.log('Transaction committed successfully');
                         } catch (error) {
-                            console.log(error)
+                            // console.log(error)
                             await walletAddsession.abortTransaction();
                             // console.error('Transaction aborted due to error:', error);
                         }
@@ -1651,7 +1651,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                 },
                 res: async (apiResponse) => {
                     const { data, success } = apiResponse;
-                    console.log("flipzikPayoutMindMatrix data:", apiResponse);
+                    // console.log("flipzikPayoutMindMatrix data:", apiResponse);
 
                     if (!success) {
                         return { message: "Failed", data: `Bank server is down.` }
@@ -1836,7 +1836,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             payOutModelGen.isSuccess = "Failed"
                             await payOutModelGen.save()
                         } catch (error) {
-                            console.log("inside error:", error.message)
+                            // console.log("inside error:", error.message)
                             await walletAddsession.abortTransaction();
                             // console.error('Transaction aborted due to error:', error);
                         }
@@ -1919,7 +1919,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             payOutModelGen.isSuccess = "Failed"
                             await payOutModelGen.save()
                         } catch (error) {
-                            console.log("inside error:", error.message)
+                            // console.log("inside error:", error.message)
                             await walletAddsession.abortTransaction();
                         }
                         finally {
@@ -2302,7 +2302,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             payOutModelGen.isSuccess = "Failed"
                             await payOutModelGen.save()
                         } catch (error) {
-                            console.log("inside error:", error.message)
+                            // console.log("inside error:", error.message)
                             await walletAddsession.abortTransaction();
                         }
                         finally {
@@ -2539,7 +2539,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             payOutModelGen.isSuccess = "Failed"
                             await payOutModelGen.save()
                         } catch (error) {
-                            console.log("inside error:", error.message)
+                            // console.log("inside error:", error.message)
                             await walletAddsession.abortTransaction();
                         }
                         finally {
@@ -2578,7 +2578,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                 res: async (apiResponse) => {
 
                     const { status, message, data } = apiResponse;
-                    console.log("apiRes", apiResponse)
+                    // console.log("apiRes", apiResponse)
                     const { response_code, subStatus, ref_id, transaction_id, utr, payment_mode, amount, payment_remark, account_number, ifsc, beneficiaryName } = data;
 
 
@@ -2749,7 +2749,7 @@ export const performPayoutApiCall = async (payOutApi, apiConfig, accountNo, ifsc
                 apiDetails.headers = {};
                 apiDetails.headers.token = token;
             } catch (error) {
-                console.log(" payOut.controller.js:2310 ~ performPayoutApiCall ~ error:", error);
+                // console.log(" payOut.controller.js:2310 ~ performPayoutApiCall ~ error:", error);
             }
         } else if (payOutApi?.apiName === "jiffypayoutSkill") {
             const isBeneficiaryExists = await BeneficiaryModel.findOne({ accountNo, ifsc, bankName })
@@ -2777,7 +2777,7 @@ export const performPayoutApiCall = async (payOutApi, apiConfig, accountNo, ifsc
                     }
                     beneficiaryId = data?.beneficiaryId
                 } catch (error) {
-                    console.log(" payOut.controller.js:2419 ~ performPayoutApiCall ~ error:", error?.response?.data);
+                    // console.log(" payOut.controller.js:2419 ~ performPayoutApiCall ~ error:", error?.response?.data);
                     throw Error("Beneficery add issue")
                 }
             } else {
@@ -2792,7 +2792,7 @@ export const performPayoutApiCall = async (payOutApi, apiConfig, accountNo, ifsc
 
 
     } catch (error) {
-        console.log(" payOut.controller.js:2786 ~ performPayoutApiCall ~ error:", error?.response?.data);
+        // console.log(" payOut.controller.js:2786 ~ performPayoutApiCall ~ error:", error?.response?.data);
 
         // console.log(error, "error")
         if (error?.response?.data?.fault?.detail?.errorcode === "steps.accesscontrol.IPDeniedAccess") {
@@ -3096,7 +3096,7 @@ export const payoutCallBackImpactPeek = asyncHandler(async (req, res) => {
             return res.status(400).json({ message: "Failed", data: "Trx Id and user not Found !" })
         }
     } catch (error) {
-        console.log(error)
+        // console.log(error)
         return res.status(400).json({ message: "Failed", data: "Internal server error !" })
     }
 });
@@ -3707,7 +3707,7 @@ export const proConceptCallback = asyncHandler(async (req, res) => {
                 getDocoment.isSuccess = "Failed"
                 await getDocoment.save()
             } catch (error) {
-                console.log("inside error:", error.message)
+                // console.log("inside error:", error.message)
                 await walletAddsession.abortTransaction();
                 // console.error('Transaction aborted due to error:', error);
             }
@@ -3721,7 +3721,7 @@ export const proConceptCallback = asyncHandler(async (req, res) => {
             return res.status(400).json({ message: "Failed", data: "Not success and not Failed !" })
         }
     } catch (error) {
-        console.log(error)
+        // console.log(error)
         return res.status(500).json({ message: "Failed", data: "Internel server Error Accured !" })
     }
     // finally {
@@ -3815,7 +3815,7 @@ export const frescopayCallback = asyncHandler(async (req, res) => {
                 getDocoment.isSuccess = "Failed"
                 await getDocoment.save()
             } catch (error) {
-                console.log("inside error:", error.message)
+                // console.log("inside error:", error.message)
                 await walletAddsession.abortTransaction();
                 // console.error('Transaction aborted due to error:', error);
             }
@@ -3976,11 +3976,11 @@ export const callBackCollectPay = asyncHandler(async (req, res) => {
     // const release = await flipzikMutex.acquire()
     try {
         const Data = req.query;
-        console.log(Data, "data")
-        console.log(req.query, "req.query")
+        // console.log(Data, "data")
+        // console.log(req.query, "req.query")
 
         const dataObject = { txnid: Data?.AgentTrasID, optxid: Data?.TransID, rrn: Data?.Bankrrn, status: Data?.Status }
-        console.log(dataObject, "callback iterate")
+        // console.log(dataObject, "callback iterate")
 
         let getDocoment = await payOutModelGenerate.findOne({ trxId: dataObject?.txnid });
 
@@ -4178,7 +4178,7 @@ export const webHookWaayupayImpactPeek = asyncHandler(async (req, res) => {
             }
             return res.status(200).json(new ApiResponse(200, null, "Successfully !"))
         } else if (dataObject.status == 0 || dataObject.status == 4) {
-            console.log("inside the faliled", dataObject?.statusCode)
+            // console.log("inside the faliled", dataObject?.statusCode)
             const session = await mongoose.startSession();
 
             try {
@@ -4358,7 +4358,7 @@ export const vaultagePayoutCallback = asyncHandler(async (req, res) => {
 
                 return res.status(200).json({ message: "Failed", data: "Transaction processed successfully!" });
             } catch (error) {
-                console.log(" payOut.controller.js:3869 ~ vaultagePayoutCallback ~ error:", error);
+                // console.log(" payOut.controller.js:3869 ~ vaultagePayoutCallback ~ error:", error);
 
 
                 await session.abortTransaction();

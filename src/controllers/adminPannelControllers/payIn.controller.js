@@ -950,7 +950,7 @@ export const generatePayment = async (req, res) => {
                     }
 
                     const response = await sambhavPayin2(sambhavPayload);
-                    console.log(" payIn.controller.js:945 ~ generatePayment ~ response:", response);
+                    // console.log(" payIn.controller.js:945 ~ generatePayment ~ response:", response);
 
 
                     let apiResponse = {}
@@ -1045,7 +1045,7 @@ export const generatePayment = async (req, res) => {
                     }
                     return res.status(apiResponse.status || 500).json(new ApiResponse(apiResponse.status || 500, apiResponse, undefined, apiResponse.status !== 200 ? "Failed" : "Success"));
                 } catch (error) {
-                    console.log(" payIn.controller.js:958 ~ generatePayment ~ error:", error);
+                    // console.log(" payIn.controller.js:958 ~ generatePayment ~ error:", error);
                     return res.status(500).json({ message: "Failed", data: "trx Id duplicate Find !" })
                 }
             }
@@ -1228,7 +1228,7 @@ export const generatePayment = async (req, res) => {
                 return res.status(400).json({ message: "Failed", data: dataApiResponse })
         }
     } catch (error) {
-        console.log(" payIn.controller.js:943 ~ generatePayment ~ error:", error);
+        // console.log(" payIn.controller.js:943 ~ generatePayment ~ error:", error);
 
         // console.log("error==>", error.message);
         return res.status(400).json({ message: "Failed", data: "Server Side Problem !" })
@@ -1458,7 +1458,7 @@ export const testCallBackResponse = asyncHandler(async (req, res) => {
                 data = { status: callBackData?.status, payerAmount: callBackData?.payerAmount, payerName: callBackData?.payerName, txnID: callBackData?.txnID, BankRRN: callBackData?.BankRRN, payerVA: callBackData?.payerVA, TxnInitDate: callBackData?.TxnInitDate, TxnCompletionDate: callBackData?.TxnCompletionDate }
                 break;
             default:
-                console.log("its default")
+                // console.log("its default")
                 break;
         }
 
@@ -1556,7 +1556,8 @@ export const testCallBackResponse = asyncHandler(async (req, res) => {
         }
 
     } catch (error) {
-        console.log("error==>", error.message);
+        // console.log("error==>", error.message);
+        null
     } finally {
         release()
     }
@@ -1663,7 +1664,7 @@ export const rezorPayCallback = asyncHandler(async (req, res) => {
                 TxnInitDate: reqPaymentLinkObj.entity.created_at,
                 TxnCompletionDate: reqPaymentLinkObj.entity.updated_at
             };
-            console.log("error logging", upiWalletDataObject, qrGenDoc, payinDataStore, userCallBackURL, userRespSendApi);
+            // console.log("error logging", upiWalletDataObject, qrGenDoc, payinDataStore, userCallBackURL, userRespSendApi);
 
 
             await Promise.allSettled([
@@ -1685,7 +1686,7 @@ export const rezorPayCallback = asyncHandler(async (req, res) => {
             return res.status(400).json({ succes: "Failed", message: "Txn Id Not Avabile!" })
         }
     } catch (error) {
-        console.log("error=>", error.message);
+        // console.log("error=>", error.message);
         return res.status(400).json({ succes: "Failed", message: error.message || "Txn Id Not Avabile!" })
 
     } finally {
@@ -1796,7 +1797,7 @@ export const iSmartPayCallback = asyncHandler(async (req, res) => {
         }
 
     } catch (error) {
-        console.log("error in ismart pay callback", error.message);
+        // console.log("error in ismart pay callback", error.message);
 
         return res.status(400).json({ succes: "Failed", message: error.message || "Txn Id Not Avabile!" })
     } finally {
@@ -2502,7 +2503,7 @@ async function sambhavPayin({ orderNo, amount, currency = "INR", txnReqType = "S
     });
 
     if (response?.error) {
-        console.log(" payIn.controller.js:1894 ~ response?.error:", response?.error);
+        // console.log(" payIn.controller.js:1894 ~ response?.error:", response?.error);
         return {
             status: false,
             message: "Transaction Failed",
@@ -2543,7 +2544,7 @@ async function sambhavPayin2({ orderNo, amount, currency = "INR", txnReqType = "
         respUrl: "",
         optional1: optional1,
     })
-    console.log(" payIn.controller.js:2536 ~ sambhavPayin2 ~ result:", result);
+    // console.log(" payIn.controller.js:2536 ~ sambhavPayin2 ~ result:", result);
 
     if (result?.error) {
         throw new Error("Transaction Failed");
