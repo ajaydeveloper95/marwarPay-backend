@@ -43,5 +43,5 @@ const qrGenerationSchema = new Schema({
     },
 }, { timestamps: true }); 
 qrGenerationSchema.index({createdAt:1}) 
-qrGenerationSchema.index({trxId:1}, { unique: true }) 
+// qrGenerationSchema.index({trxId:1}, { unique: true }) 
 export default new model("qrGenerationRecode", qrGenerationSchema);

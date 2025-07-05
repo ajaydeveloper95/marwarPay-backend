@@ -61,6 +61,6 @@ const oldPayOutSchemaGen = new Schema({
 }, { timestamps: { createdAt: 'CreatedAtMigrate', updatedAt: 'UpdatedAtMigrate' } });
 
 oldPayOutSchemaGen.index({ createdAt: 1 })
-oldPayOutSchemaGen.index({ trxId: 1 }, { unique: true })
+// oldPayOutSchemaGen.index({ trxId: 1 }, { unique: true })
 
 export default new model("oldPayOutGenerated", oldPayOutSchemaGen);

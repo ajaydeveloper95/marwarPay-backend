@@ -57,6 +57,6 @@ const payOutSchemaGen = new Schema({
 }, { timestamps: true });
 
 payOutSchemaGen.index({createdAt:1}) 
-payOutSchemaGen.index({trxId:1}, { unique: true }) 
+// payOutSchemaGen.index({trxId:1}, { unique: true }) 
 
 export default new model("payOutGenerated", payOutSchemaGen);

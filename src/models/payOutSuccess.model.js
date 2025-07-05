@@ -38,5 +38,5 @@ const payOutSchema = new Schema({
         enum: ["Pending", "Failed", "Success"],
     },
 }, { timestamps: true });
-payOutSchema.index({trxId:1}, { unique: true }) 
+// payOutSchema.index({trxId:1}, { unique: true }) 
 export default new model("payOutRecode", payOutSchema);

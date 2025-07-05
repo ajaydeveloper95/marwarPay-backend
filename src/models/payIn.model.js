@@ -51,5 +51,5 @@ const payInSchema = new Schema({
         required: [true, "Required Status Success or Failed !"]
     },
 }, { timestamps: true });
-payInSchema.index({trxId:1}, {unique:true})
+// payInSchema.index({trxId:1}, {unique:true})
 export default new model("payInRecode", payInSchema);

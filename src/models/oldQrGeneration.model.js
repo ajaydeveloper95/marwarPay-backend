@@ -52,5 +52,5 @@ const oldQrGenerationSchema = new Schema({
     }
 }, { timestamps: { createdAt: 'CreatedAtMigrate', updatedAt: 'UpdatedAtMigrate' } });
 oldQrGenerationSchema.index({ createdAt: 1 })
-oldQrGenerationSchema.index({ trxId: 1 }, { unique: true })
+// oldQrGenerationSchema.index({ trxId: 1 }, { unique: true })
 export default new model("oldQrGenerationRecode", oldQrGenerationSchema);
