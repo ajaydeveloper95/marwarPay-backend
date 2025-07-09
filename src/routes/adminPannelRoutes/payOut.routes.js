@@ -45,6 +45,8 @@ router.post("/flipzikWebhookImpactPeek", flipzikCallbackImpactPeek);
 
 router.post("/flipzikWebhookMindmatrix", flipzikCallbackImpactPeek);
 
+router.post("/flipzikWebhookSilverZen", flipzikCallbackImpactPeek);
+
 router.post("/procenceptWebhook", proConceptCallback);
 
 router.post('/frescopayCallback', frescopayCallback)

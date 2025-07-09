@@ -332,7 +332,7 @@ function scheduleFlipzikImpactPeek() {
             createdAt: { $lt: threeHoursAgo },
             pannelUse: "flipzikPayoutImpactPeek"
         })
-            .sort({ createdAt: 1 }).limit(5)
+            .sort({ createdAt: 1 }).limit(3)
 
         try {
             if (GetData?.length !== 0) {
@@ -362,8 +362,6 @@ function generateSignature(timestamp, body, path, queryString = '', method = 'PO
 
 async function processFlipzikPayout(item) {
     const data = await flipzikStatusCheckImpactPeek(item.trxId)
-    console.log(" processFlipzikPayout ~ data:", data);
-    return
     const session = await userDB.startSession({ readPreference: 'primary', readConcern: { level: "majority" }, writeConcern: { w: "majority" } });
     const release = await transactionMutex.acquire();
     try {
@@ -2061,7 +2059,7 @@ export default function scheduleTask() {
     // payoutTaskScript()
     // payoutDeductPackageTaskScript()
     // payinScheduleTask2()
-    // scheduleFlipzikImpactPeek()
+    scheduleFlipzikImpactPeek()
     // EwalletManuplation()
     // payOutDuplicateEntryRemove()
     // payoutMigrateDuplicateEntry()

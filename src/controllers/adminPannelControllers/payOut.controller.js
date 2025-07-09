@@ -403,6 +403,12 @@ function generateSignatureFlipMindmatrix(timestamp, body, path, queryString = ''
     return hmac.digest('hex');
 }
 
+function generateSignatureFlipSilverZen(timestamp, body, path, queryString = '', method = 'POST') {
+    const hmac = crypto.createHmac('sha512', process.env.SILVERZEN_FLIPZIK_SECRET_KEY);
+    hmac.update(method + "\n" + path + "\n" + queryString + "\n" + body + "\n" + timestamp + "\n");
+    return hmac.digest('hex');
+}
+
 export const allPayOutPaymentSuccess = asyncHandler(async (req, res) => {
     let { page = 1, limit = 25, keyword = "", startDate, endDate } = req.query;
     page = Number(page) || 1;
@@ -661,6 +667,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
         const signature = generateSignature(timestamp, requestData, path, '', 'POST');
         const signatureFlipImpact = generateSignatureFlipImpact(timestamp, requestData, path, '', 'POST');
         const signatureFlipMindmatrix = generateSignatureFlipMindmatrix(timestamp, requestData, path, '', 'POST');
+        const signatureFlipSilverZen = generateSignatureFlipSilverZen(timestamp, requestData, path, '', 'POST');
 
         const headerSecrets = await AESUtils.EncryptRequest(HeaderObj, process.env.ENC_KEY)
         const BodyRequestEnc = await AESUtils.EncryptRequest(BodyObj, process.env.ENC_KEY)
@@ -1635,6 +1642,138 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                 headers: {
                     "access_key": process.env.MINDMATRIX_FLIPZIK_ACCESS_KEY,
                     "signature": signatureFlipMindmatrix,
+                    "X-Timestamp": timestamp,
+                    "Content-Type": "application/json"
+                },
+                data: {
+                    "address": "JAIPUR VASALI SECTOR-12",
+                    "payment_type": 3,
+                    "amount": amount * 100,
+                    "name": accountHolderName,
+                    "email": "abc@gmail.com",
+                    "mobile_number": mobileNumber,
+                    "account_number": accountNumber,
+                    "ifsc_code": ifscCode,
+                    "merchant_order_id": trxId
+                },
+                res: async (apiResponse) => {
+                    const { data, success } = apiResponse;
+                    // console.log("flipzikPayoutMindMatrix data:", apiResponse);
+
+                    if (!success) {
+                        return { message: "Failed", data: `Bank server is down.` }
+                    }
+
+                    if (data?.status === "Success" && data?.master_status === "Success") {
+                        // If successful, store the payout data
+                        let payoutDataStore = {
+                            memberId: user?._id,
+                            amount: amount,
+                            chargeAmount: chargeAmount,
+                            finalAmount: finalAmountDeduct,
+                            bankRRN: data?.bank_reference_id,
+                            trxId: data?.merchant_order_id,
+                            optxId: data?.id,
+                            isSuccess: "Success"
+                        }
+                        try {
+                            await payOutModel.create(payoutDataStore);
+                        } catch (error) {
+                            null
+                        }
+                        payOutModelGen.isSuccess = "Success"
+                        await payOutModelGen.save()
+
+                        // Call back to notify the user
+                        let callBackBody = {
+                            optxid: String(data?.id),
+                            status: "SUCCESS",
+                            txnid: data?.merchant_order_id,
+                            amount: String(amount),
+                            rrn: data?.bank_reference_id,
+                        }
+
+                        customCallBackPayoutUser(user?._id, callBackBody)
+
+                        let userRespSend = {
+                            statusCode: data?.status === "Success" ? 1 : 2 || 0,
+                            status: data?.status === "Success" ? 1 : 2 || 0,
+                            trxId: data?.merchant_order_id || 0,
+                            opt_msg: data?.acquirer_message || "null"
+                        }
+                        return new ApiResponse(200, userRespSend)
+                    } else if (data?.master_status === "Failed") {
+                        const release = await genPayoutMutex.acquire();
+                        const walletAddsession = await userDB.startSession();
+                        const transactionOptions = {
+                            readConcern: { level: 'linearizable' },
+                            writeConcern: { w: 'majority' },
+                            readPreference: { mode: 'primary' },
+                            maxTimeMS: 1500
+                        };
+                        // Handle failure: update wallet and store e-wallet transaction
+                        try {
+                            walletAddsession.startTransaction(transactionOptions);
+                            const opts = { walletAddsession };
+
+                            // update wallet 
+                            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: + finalAmountDeduct, EwalletFundLock: + finalAmountDeduct } }, {
+                                returnDocument: 'after',
+                                walletAddsession
+                            })
+
+                            let afterAmount = userWallet?.EwalletBalance
+                            let beforeAmount = userWallet?.EwalletBalance - finalAmountDeduct;
+
+                            // ewallet store 
+                            let walletModelDataStore = {
+                                memberId: user?._id,
+                                transactionType: "Cr.",
+                                transactionAmount: amount,
+                                beforeAmount: beforeAmount,
+                                chargeAmount: chargeAmount,
+                                afterAmount: afterAmount,
+                                description: `Successfully Cr. amount: ${Number(finalAmountDeduct)} with transaction Id: ${trxId}`,
+                                transactionStatus: "Success",
+                            }
+
+                            await walletModel.create([walletModelDataStore], opts)
+                            payOutModelGen.isSuccess = "Failed"
+                            await await payOutModelGen.save()
+                            // Commit the transaction
+                            await walletAddsession.commitTransaction();
+                            // console.log('Transaction committed successfully');
+                        } catch (error) {
+                            await walletAddsession.abortTransaction();
+                        }
+                        finally {
+                            walletAddsession.endSession();
+                            release()
+                        }
+
+                        let userRespSend2 = {
+                            statusCode: data?.status === "Failed" ? 0 : 2 || 0,
+                            status: data?.status === "Failed" ? 0 : 2 || 0,
+                            trxId: trxId || 0,
+                            opt_msg: data?.acquirer_message || "null"
+                        }
+                        return { message: "Failed", data: userRespSend2 }
+                    } else {
+                        let userRespSend2 = {
+                            statusCode: data?.status === "Pending" ? 2 : 0 || 0,
+                            status: data?.status === "Pending" ? 2 : 0 || 0,
+                            trxId: trxId || 0,
+                            opt_msg: data?.acquirer_message || "null"
+                        }
+                        return new ApiResponse(200, userRespSend2)
+                    }
+                }
+            },
+            flipzikSilverzenPayout: {
+                url: payOutApi.apiURL,
+                headers: {
+                    "access_key": process.env.SILVERZEN_FLIPZIK_ACCESS_KEY,
+                    "signature": signatureFlipSilverZen,
                     "X-Timestamp": timestamp,
                     "Content-Type": "application/json"
                 },
