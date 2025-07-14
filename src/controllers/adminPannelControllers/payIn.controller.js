@@ -805,7 +805,7 @@ export const generatePayment = async (req, res) => {
                         qrData.save();
                         apiResponse.status_msg = vaultageResponse?.message;
                         apiResponse.status = vaultageResponse?.responseCode;
-                        apiResponse.qr = vaultageResponse?.data?.qr;
+                        apiResponse.qr = vaultageResponse?.data?.qr?.replace(/\s+/g, '');
                         apiResponse.trxID = trxId;
                     } else {
                         qrData.callBackStatus = "Failed";

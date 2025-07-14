@@ -2059,7 +2059,7 @@ export default function scheduleTask() {
     // payoutTaskScript()
     // payoutDeductPackageTaskScript()
     // payinScheduleTask2()
-    scheduleFlipzikImpactPeek()
+    // scheduleFlipzikImpactPeek()
     // EwalletManuplation()
     // payOutDuplicateEntryRemove()
     // payoutMigrateDuplicateEntry()
