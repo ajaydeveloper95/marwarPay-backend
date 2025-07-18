@@ -31,7 +31,7 @@ import Log from "./models/Logs.model.js";
 const app = express();
 
 // Auto schedule tasks
-// scheduleTask();
+scheduleTask();
 
 // Set up Morgan to log POST requests with request and response details
 morgan.token("custom", (req, res) => {

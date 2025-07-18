@@ -321,7 +321,7 @@ async function processWaayuPayOutFnMindMatrix(item, indexNumber) {
 
 let tempTrxIds = []
 function scheduleFlipzikImpactPeek() {
-    cron.schedule('* * * * *', async () => {
+    cron.schedule('*/40 * * * * *', async () => {
         const release = await transactionMutexImpactFlipZik.acquire();
         const threeHoursAgo = new Date();
         threeHoursAgo.setHours(threeHoursAgo.getHours() - 3)
@@ -332,13 +332,13 @@ function scheduleFlipzikImpactPeek() {
             createdAt: { $lt: threeHoursAgo },
             pannelUse: "flipzikPayoutImpactPeek"
         })
-            .sort({ createdAt: 1 }).limit(3)
+            .sort({ createdAt: 1 }).limit(1)
 
         try {
             if (GetData?.length !== 0) {
                 GetData.forEach(async (item) => {
                     tempTrxIds.push(item?.trxId)
-                    console.log(item)
+                    // console.log(item)
                     await processFlipzikPayout(item)
                 })
             } else {
@@ -361,7 +361,8 @@ function generateSignature(timestamp, body, path, queryString = '', method = 'PO
 }
 
 async function processFlipzikPayout(item) {
-    const data = await flipzikStatusCheckImpactPeek(item.trxId)
+    const data = await flipzikStatusCheckImpactPeek(item?.trxId)
+
     const session = await userDB.startSession({ readPreference: 'primary', readConcern: { level: "majority" }, writeConcern: { w: "majority" } });
     const release = await transactionMutex.acquire();
     try {
@@ -436,6 +437,16 @@ async function processFlipzikPayout(item) {
             await session.commitTransaction();
             // console.log('Transaction committed successfully');
 
+            // callback send 
+            let callBackBody = {
+                optxid: data?.id,
+                status: "FAILED",
+                txnid: data?.merchant_order_id,
+                amount: item?.amount,
+                rrn: data?.bank_reference_id,
+            }
+            customCallBackPayoutUser(item?.memberId, callBackBody)
+
             return true;
         }
         else if (data === "NotFound") {
@@ -470,7 +481,19 @@ async function processFlipzikPayout(item) {
             await walletModel.create([walletModelDataStore], opts)
             // Commit the transaction
             await session.commitTransaction();
+
             // console.log('Transaction committed successfully');
+            // callback send 
+            let callBackBody = {
+                optxid: data?.id,
+                status: "FAILED",
+                txnid: data?.merchant_order_id,
+                amount: item?.amount,
+                rrn: data?.bank_reference_id,
+            }
+            customCallBackPayoutUser(item?.memberId, callBackBody)
+
+            return true;
         }
         else {
             // console.log(data, "data value")
@@ -490,21 +513,23 @@ async function processFlipzikPayout(item) {
 }
 
 async function flipzikStatusCheckImpactPeek(payout_id) {
-    const timestamp = Date.now().toString();
-    const signature = generateSignature(timestamp, "", `/api/v1/payout/${payout_id}`, '', 'GET');
     try {
-        const url = `https://api.flipzik.com/api/v1/payout/${payout_id}`;
+        const url = "https://pending.zanithpay.com/pending/flipzikPendingClear";
 
         const headers = {
-            "X-Timestamp": timestamp,
-            "access_key": process.env.IMPACTPEEK_FLIPZIK_ACCESS_KEY,
-            "signature": signature
+            "Content-Type": "application/json"
         };
 
-        const response = await axios.get(url, { headers });
+        const BodyData = {
+            "payout_id": payout_id,
+            "SecretKey": process?.env?.IMPACTPEEK_FLIPZIK_SECRET_KEY,
+            "AccessKey": process?.env?.IMPACTPEEK_FLIPZIK_ACCESS_KEY
+        }
+
+        const response = await axios.post(url, BodyData, { headers });
 
         // console.log("Transaction Status:", response?.data);
-        return response?.data;
+        return response?.data?.data;
 
     } catch (error) {
         console.log(" flipzikStatusCheckImpactPeek ~ error:", error);
