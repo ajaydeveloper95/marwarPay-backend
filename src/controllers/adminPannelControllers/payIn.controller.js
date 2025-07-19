@@ -2509,7 +2509,7 @@ async function sambhavPayin({ orderNo, amount, currency = "INR", txnReqType = "S
             message: "Transaction Failed",
         }
     } else {
-        return respHandler(response, api_url);
+        return respHandler2(response, api_url);
     }
 }
 
@@ -2726,31 +2726,29 @@ async function respHandler(jsonData) {
     }
 }
 
-// async function respHandler(jsonData, api_url) {
-//     const responseData = jsonData;
+async function respHandler2(jsonData, api_url) {
+    const responseData = jsonData;
 
-//     if (responseData?.respCode == 1) {
-//         return {
-//             status: false,
-//             message: responseData?.data || "Transaction Failed",
-//         }
-//     } else {
-//         const mid = process.env.SAMBHAVPAY_MID;
-//         const secretKey = process.env.SAMBHAVPAY_SECRET_KEY;
-//         const saltKey = process.env.SAMBHAVPAY_SALT_KEY;
+    if (responseData?.respCode == 1) {
+        return {
+            status: false,
+            message: responseData?.data || "Transaction Failed",
+        }
+    } else {
+        const mid = process.env.SAMBHAVPAY_MID;
+        const secretKey = process.env.SAMBHAVPAY_SECRET_KEY;
+        const saltKey = process.env.SAMBHAVPAY_SALT_KEY;
 
-//         const sp = new SambhavPay({ api_url });
-//         sp._mid = mid;
-//         sp._secretKey = secretKey;
-//         sp._saltKey = saltKey;
+        const sp = new SambhavPay({ api_url });
+        sp._mid = mid;
+        sp._secretKey = secretKey;
+        sp._saltKey = saltKey;
 
-//         const data = JSON.parse(responseData?.data);
-//         const respData = data?.respData;
-//         const checkSum = data?.checkSum;
+        const data = JSON.parse(responseData?.data);
+        const respData = data?.respData;
+        const checkSum = data?.checkSum;
 
-//         const response = sp.getResponse(respData, mid, checkSum);
-//         console.log(" payIn.controller.js:1964 ~ respHandler ~ response:", JSON.parse(response));
-
-//         return JSON.parse(response);
-//     }
-// }
+        const response = sp.getResponse(respData, mid, checkSum);
+        return JSON.parse(response);
+    }
+}
