@@ -676,7 +676,7 @@ class SambhavPay {
         ResponseArray["txnRespDate"] = returnArray["txnRespDate"];
         ResponseArray["upiString"] = returnArray["upiString"];
 
-        console.log(" SambhavPay.js:679 ~ SambhavPay ~ getResponse ~ ResponseArray:", ResponseArray);
+        // console.log(" SambhavPay.js:679 ~ SambhavPay ~ getResponse ~ ResponseArray:", ResponseArray);
 
         return JSON.stringify(ResponseArray, null, 2);
       } else {
@@ -711,7 +711,7 @@ class SambhavPay {
       .join("&");
     const url = this.PGStatusCheck_URL;
     const result = await this.#excuteSilentPost(url, queryString);
-    
+
     return this.#parseStatusResp(result);
   }
 
@@ -807,44 +807,44 @@ class SambhavPay {
     return hashValue;
   }
 
-//   #createCheckSumCancelResp(saltKey, cancelOrderNo,
-//     cancelAmount,
-//     RespCode,
-//     RespMessage
-//   ) {
-//     const dataString =
-//       cancelOrderNo + "," + cancelAmount + "," + RespCode + "," + RespMessage;
-//     saltKey = this.#base64Encode(saltKey);
-//     let hashValue = CryptoJS.HmacSHA512(dataString, saltKey);
-//     hashValue = CryptoJS.enc.Hex.stringify(hashValue);
-//     hashValue = hashValue.toString().toUpperCase();
-//     return hashValue;
-//   }
+  //   #createCheckSumCancelResp(saltKey, cancelOrderNo,
+  //     cancelAmount,
+  //     RespCode,
+  //     RespMessage
+  //   ) {
+  //     const dataString =
+  //       cancelOrderNo + "," + cancelAmount + "," + RespCode + "," + RespMessage;
+  //     saltKey = this.#base64Encode(saltKey);
+  //     let hashValue = CryptoJS.HmacSHA512(dataString, saltKey);
+  //     hashValue = CryptoJS.enc.Hex.stringify(hashValue);
+  //     hashValue = hashValue.toString().toUpperCase();
+  //     return hashValue;
+  //   }
 
-//   #createCheckSumRefundResp(
-//     saltKey,
-//     RefundOrderNo,
-//     RefundAmount,
-//     RespCode,
-//     RespMessage
-//   ) {
-//     const dataString =
-//       RefundOrderNo + "," + RefundAmount + "," + RespCode + "," + RespMessage;
-//     saltKey = this.#base64Encode(saltKey);
-//     let hashValue = CryptoJS.HmacSHA512(dataString, saltKey);
-//     hashValue = CryptoJS.enc.Hex.stringify(hashValue);
-//     hashValue = hashValue.toString().toUpperCase();
-//     return hashValue;
-//   }
+  //   #createCheckSumRefundResp(
+  //     saltKey,
+  //     RefundOrderNo,
+  //     RefundAmount,
+  //     RespCode,
+  //     RespMessage
+  //   ) {
+  //     const dataString =
+  //       RefundOrderNo + "," + RefundAmount + "," + RespCode + "," + RespMessage;
+  //     saltKey = this.#base64Encode(saltKey);
+  //     let hashValue = CryptoJS.HmacSHA512(dataString, saltKey);
+  //     hashValue = CryptoJS.enc.Hex.stringify(hashValue);
+  //     hashValue = hashValue.toString().toUpperCase();
+  //     return hashValue;
+  //   }
 
-//   #checkSumValidation(saltKey, orderNo) {
-//     const dataString = orderNo;
-//     saltKey = this.#base64Encode(saltKey);
-//     let hashValue = CryptoJS.HmacSHA512(dataString, saltKey);
-//     hashValue = CryptoJS.enc.Hex.stringify(hashValue);
-//     hashValue = hashValue.toString().toUpperCase();
-//     return hashValue;
-//   }
+  //   #checkSumValidation(saltKey, orderNo) {
+  //     const dataString = orderNo;
+  //     saltKey = this.#base64Encode(saltKey);
+  //     let hashValue = CryptoJS.HmacSHA512(dataString, saltKey);
+  //     hashValue = CryptoJS.enc.Hex.stringify(hashValue);
+  //     hashValue = hashValue.toString().toUpperCase();
+  //     return hashValue;
+  //   }
 }
 
 export default new SambhavPay();

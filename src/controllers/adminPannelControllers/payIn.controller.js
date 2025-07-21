@@ -950,8 +950,6 @@ export const generatePayment = async (req, res) => {
                     }
 
                     const response = await sambhavPayin2(sambhavPayload);
-                    // console.log(" payIn.controller.js:945 ~ generatePayment ~ response:", response);
-
 
                     let apiResponse = {}
                     if (response?.status === false) {
@@ -1045,7 +1043,6 @@ export const generatePayment = async (req, res) => {
                     }
                     return res.status(apiResponse.status || 500).json(new ApiResponse(apiResponse.status || 500, apiResponse, undefined, apiResponse.status !== 200 ? "Failed" : "Success"));
                 } catch (error) {
-                    // console.log(" payIn.controller.js:958 ~ generatePayment ~ error:", error);
                     return res.status(500).json({ message: "Failed", data: "trx Id duplicate Find !" })
                 }
             }
@@ -2353,10 +2350,11 @@ export const callBackSambhavPay = asyncHandler(async (req, res) => {
         }
 
         const trx = await qrGenerationModel.findOne({ trxId: orderId });
+        // trx ??= await oldQrGenerationModel.findOne({ trxId: orderId });
 
         if (!trx || trx.callBackStatus !== "Pending") {
             return res.status(200).json({
-                message: "SUCCESS",
+                message: "not found",
                 status: "200"
             });
         }
