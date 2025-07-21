@@ -4456,7 +4456,7 @@ export const vaultagePayoutCallback = asyncHandler(async (req, res) => {
                 rrn: dataObject?.rrn
             }
             try {
-                axios.post(payOutUserCallBackURL, shareObjData, config)
+                await axios.post(payOutUserCallBackURL, shareObjData, config)
             } catch (error) {
                 null
             }
@@ -4536,7 +4536,7 @@ export const vaultagePayoutCallback = asyncHandler(async (req, res) => {
                         amount: mainAmount,
                         rrn: dataObject?.rrn
                     }
-                    axios.post(payOutUserCallBackURL, shareObjData, config)
+                    await axios.post(payOutUserCallBackURL, shareObjData, config)
                 } catch (error) {
                     null
                 }
