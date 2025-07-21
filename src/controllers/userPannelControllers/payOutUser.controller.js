@@ -287,6 +287,34 @@ export const allPayOutTransactionSuccess = asyncHandler(async (req, res) => {
                 }
             }] : []),
         {
+            $lookup: {
+                from: "payoutgenerateds",
+                localField: "trxId",
+                foreignField: "trxId",
+                as: "payoutInfo1"
+            }
+        },
+        {
+            $lookup: {
+                from: "oldpayoutgenerateds",
+                localField: "trxId",
+                foreignField: "trxId",
+                as: "payoutInfo2"
+            }
+        },
+        {
+            $addFields: {
+                payoutMatch: {
+                    $cond: {
+                        if: { $gt: [{ $size: "$payoutInfo1" }, 0] },
+                        then: { $arrayElemAt: ["$payoutInfo1", 0] },
+                        else: { $arrayElemAt: ["$payoutInfo2", 0] }
+                    }
+                }
+            }
+        },
+
+        {
             $project: {
                 "_id": 1,
                 "memberId": 1,
@@ -299,7 +327,9 @@ export const allPayOutTransactionSuccess = asyncHandler(async (req, res) => {
                 "createdAt": 1,
                 "updatedAt": 1,
                 "_id": 1,
-                "memberId": 1
+                "memberId": 1,
+                "accountNumber": "$payoutMatch.accountNumber",
+                "ifsc": "$payoutMatch.ifscCode"
             }
         },
         // { $sort: { createdAt: -1 } }
