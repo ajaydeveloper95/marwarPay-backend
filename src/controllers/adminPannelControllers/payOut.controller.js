@@ -4495,11 +4495,40 @@ export const vaultagePayoutCallback = asyncHandler(async (req, res) => {
                 await session.commitTransaction();
                 session.endSession();
 
+                try {
+                    let userInfo = await userDB.aggregate([{ $match: { _id: getDocoment?.memberId } }, { $lookup: { from: "payoutswitches", localField: "payOutApi", foreignField: "_id", as: "payOutApi" } }, {
+                        $unwind: {
+                            path: "$payOutApi",
+                            preserveNullAndEmptyArrays: true,
+                        }
+                    }, {
+                        $project: { "_id": 1, "userName": 1, "memberId": 1, "fullName": 1, "trxPassword": 1, "EwalletBalance": 1, "createdAt": 1, "payOutApi._id": 1, "payOutApi.apiName": 1, "payOutApi.apiURL": 1, "payOutApi.isActive": 1 }
+                    }]);
+
+                    let userCallBackResp = await callBackResponse.aggregate([{ $match: { memberId: userInfo[0]?._id } }]);
+                    if (userCallBackResp.length !== 1) {
+                        return res.status(200).json({ message: "Failed", data: "User have multiple callback Url or Not Found !" })
+                    }
+                    let payOutUserCallBackURL = userCallBackResp[0]?.payOutCallBackUrl;
+                    const config = {
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    };
+                    let mainAmount = getDocoment?.amount;
+                    let shareObjData = {
+                        status: dataObject?.status,
+                        txnid: dataObject?.txnid,
+                        optxid: dataObject?.optxid,
+                        amount: mainAmount,
+                        rrn: dataObject?.rrn
+                    }
+                    axios.post(payOutUserCallBackURL, shareObjData, config)
+                } catch (error) {
+                    null
+                }
                 return res.status(200).json({ message: "Failed", data: "Transaction processed successfully!" });
             } catch (error) {
-                // console.log(" payOut.controller.js:3869 ~ vaultagePayoutCallback ~ error:", error);
-
-
                 await session.abortTransaction();
                 session.endSession();
                 // console.error("Transaction failed:", error);

@@ -2011,61 +2011,73 @@ async function vaultagePayinStatusCheck() {
     }
 }
 
-async function clearPayoutPending() {
+let vaultageTrxids = []
+async function vaultagePendingsPayout() {
+    try {
+        setInterval(async () => {
+            const pendingTransactions = await payOutModelGenerate.find({
+                isSuccess: "Pending",
+                pannelUse: "vaultagePayoutApi",
+                trxId: { $nin: vaultageTrxids },
+            }).limit(1);
+            if (pendingTransactions.length === 0) {
+                console.log("No pending transactions found");
+                return;
+            }
+            const transaction = pendingTransactions[0];
+            vaultageTrxids.push(transaction.trxId);
+            console.log("Processing transaction:", transaction.trxId);
+            const trxId = transaction.trxId
+            await clearPayoutPending(trxId);
+        }, 10 * 1000);
+
+    } catch (error) {
+        console.log("🚀 ~ :2037 ~ vaultagePendingsPayout ~ error:", error);
+    }
+}
+
+async function clearPayoutPending(trxId) {
     const release = await transactionMutex.acquire();
     try {
-        const pendingTransactions = await payOutModelGenerate.find({ isSuccess: "Pending", pannelUse: "vaultagePayoutApi" })
-        for (const transaction of pendingTransactions) {
-
-            if (transaction.pannelUse !== "vaultagePayoutApi" || transaction.isSuccess !== "Pending") {
-                console.log(" scheduleTask.js:690 ~ clearPayoutPending ~ transaction:", transaction);
-                continue;
-            }
-            const isAlreadyProcessed = await payOutSuccessModel.findOne({ trxId: transaction.trxId });
-            if (isAlreadyProcessed) {
-                console.log(" scheduleTask.js:694 ~ clearPayoutPending ~ isAlreadyProcessed:", isAlreadyProcessed);
-                continue;
-            }
-            const headers = {
-                IPAddress: process.env.VAULTAGE_IP_ADDRESS,
-                AuthKey: process.env.VAULTAGE_AUTH_KEY,
-            }
-
-            const payload = {
-                TransactionId: transaction.trxId,
-            }
-
-            const { data } = await axios.post("https://vaultage.in/api/payout/v1/docheckstatus", payload, { headers })
-            console.log(" scheduleTask.js:710 ~ clearPayoutPending ~ data:", data, transaction.trxId);
-            if (data.data?.status === "PENDING") {
-                console.log(" scheduleTask.js:712 ~ clearPayoutPending ~ data.data.status:", data.data?.status);
-                continue;
-            }
-            let callbackPayload = {
-                event: "Payout",
-                Data: {
-                    RRN: data?.data?.rrn,
-                    Status: data?.data?.status,
-                    StatusCode: data?.data?.statusCode,
-                    Message: data?.data?.Message,
-                    ApiWalletTransactionId: data?.data?.apiWalletTransactionId,
-                    APITransactionId: data?.data?.apiTransactionId,
-                    mode: "manual"
-                }
-            }
-            if (data.data === null) {
-                console.log(" scheduleTask.js:721 ~ clearPayoutPending ~ data.data:", transaction.trxId);
-                callbackPayload.Data.Status = "Failed"
-                callbackPayload.Data.StatusCode = 400
-                callbackPayload.Data.APITransactionId = transaction.trxId
-                callbackPayload.Data.Message = "Transaction not found"
-            }
-            const { data: callbackResp } = await axios.post("http://localhost:5000/apiAdmin/v1/payin/vaultageCallBack", callbackPayload)
-
-            console.log(" scheduleTask.js:725 ~ clearPayoutPending ~ callbackResp:", callbackResp);
-
+        const isAlreadyProcessed = await payOutSuccessModel.findOne({ trxId: trxId });
+        if (isAlreadyProcessed) {
+            console.log(" scheduleTask.js:694 ~ clearPayoutPending ~ isAlreadyProcessed:", isAlreadyProcessed);
+            return;
         }
-        console.log("all transactions processed");
+        const payload = {
+            payout_id: trxId,
+            AuthKey: process.env.VAULTAGE_AUTH_KEY,
+        }
+        const { data: vaultageData } = await axios.post("https://pending.zanithpay.com/pending/voltagePending", payload);
+        const data = vaultageData.data;
+        console.log(" scheduleTask.js:710 ~ clearPayoutPending ~ data:", data, trxId);
+        if (data.data?.status === "PENDING") {
+            console.log(" scheduleTask.js:712 ~ clearPayoutPending ~ data.data.status:", data.data?.status);
+            return;
+        }
+        let callbackPayload = {
+            event: "Payout",
+            Data: {
+                RRN: data?.data?.rrn,
+                Status: data?.data?.status,
+                StatusCode: data?.data?.statusCode,
+                Message: data?.data?.Message,
+                ApiWalletTransactionId: data?.data?.apiWalletTransactionId,
+                APITransactionId: data?.data?.apiTransactionId,
+                mode: "manual"
+            }
+        }
+        if (data.data === null) {
+            console.log(" scheduleTask.js:721 ~ clearPayoutPending ~ data.data:", trxId);
+            callbackPayload.Data.Status = "FAILED"
+            callbackPayload.Data.StatusCode = 400
+            callbackPayload.Data.APITransactionId = trxId
+            callbackPayload.Data.Message = "Transaction not found"
+        }
+        console.log("callbackPayload", callbackPayload)
+        const { data: callbackResp } = await axios.post("http://localhost:5000/apiAdmin/v1/payin/vaultageCallBack", callbackPayload)
+
+        console.log(" scheduleTask.js:725 ~ clearPayoutPending ~ callbackResp:", callbackResp);
     } catch (error) {
         console.log(" scheduleTask.js:685 ~ clearPayoutPending ~ error:", error);
     } finally {
@@ -2090,5 +2102,5 @@ export default function scheduleTask() {
     // payoutMigrateDuplicateEntry()
     // payOutDuplicateEntryRemoveDB()
     // vaultagePayinStatusCheck()
-    // clearPayoutPending()
+    // vaultagePendingsPayout()
 }
