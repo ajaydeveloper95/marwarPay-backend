@@ -2354,7 +2354,7 @@ export const callBackSambhavPay = asyncHandler(async (req, res) => {
 
         if (!trx || trx.callBackStatus !== "Pending") {
             return res.status(200).json({
-                message: "not found",
+                message: "SUCCESS",
                 status: "200"
             });
         }
