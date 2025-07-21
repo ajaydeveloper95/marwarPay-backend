@@ -333,6 +333,19 @@ export const updatePayoutStatus = asyncHandler(async (req, res) => {
             await session.commitTransaction();
             session.endSession();
 
+
+            const callBackBody = {
+                optxid: optxId,
+                status: "FAILED",
+                txnid: trxId,
+                amount: payOutGen.amount,
+                rrn: "",
+            };
+            try {
+                customCallBackPayoutUser(user._id, callBackBody)
+            } catch (error) {
+                null
+            }
             return res.status(200).json({ message: "Success", data: "Status updated successfully" });
         }
         else if (status.toLowerCase() === "success") {
