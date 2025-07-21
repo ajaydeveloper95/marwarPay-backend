@@ -2102,5 +2102,5 @@ export default function scheduleTask() {
     // payoutMigrateDuplicateEntry()
     // payOutDuplicateEntryRemoveDB()
     // vaultagePayinStatusCheck()
-    // vaultagePendingsPayout()
+    vaultagePendingsPayout()
 }

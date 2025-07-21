@@ -342,7 +342,7 @@ export const updatePayoutStatus = asyncHandler(async (req, res) => {
                 rrn: "",
             };
             try {
-                customCallBackPayoutUser(user._id, callBackBody)
+                await customCallBackPayoutUser(user._id, callBackBody)
             } catch (error) {
                 null
             }
@@ -377,7 +377,7 @@ export const updatePayoutStatus = asyncHandler(async (req, res) => {
 
             await Promise.all([
                 payOutModel.create([payoutDataStore], { session }),
-                customCallBackPayoutUser(user._id, callBackBody)
+                await customCallBackPayoutUser(user._id, callBackBody)
             ]);
 
             // Commit the transaction
