@@ -286,6 +286,14 @@ export const updatePayoutStatus = asyncHandler(async (req, res) => {
             return res.status(401).json({ message: "Failed", data: "Invalid Credentials or User Inactive!" });
         }
 
+        const isPending = await payOutModelGenerate.findOne({ trxId, isSuccess: "Pending" }).session(session);
+
+        if (!isPending) {
+            await session.abortTransaction();
+            session.endSession();
+            return res.status(400).json({ message: "Failed", data: "Payout already updated" });
+        }
+
         // Update payout status in payOutGen
         const payOutGen = await payOutModelGenerate.findOneAndUpdate(
             { trxId: trxId },
@@ -4456,7 +4464,10 @@ export const vaultagePayoutCallback = asyncHandler(async (req, res) => {
                 rrn: dataObject?.rrn
             }
             try {
-                await axios.post(payOutUserCallBackURL, shareObjData, config)
+                const { data } = await axios.post(payOutUserCallBackURL, shareObjData, config)
+
+                console.log("🚀 ~ :4461 ~ data:", data);
+
             } catch (error) {
                 null
             }
@@ -4536,7 +4547,10 @@ export const vaultagePayoutCallback = asyncHandler(async (req, res) => {
                         amount: mainAmount,
                         rrn: dataObject?.rrn
                     }
-                    await axios.post(payOutUserCallBackURL, shareObjData, config)
+                    const { data } = await axios.post(payOutUserCallBackURL, shareObjData, config)
+
+                    console.log("🚀 ~ :4541 ~ data:", data);
+
                 } catch (error) {
                     null
                 }
