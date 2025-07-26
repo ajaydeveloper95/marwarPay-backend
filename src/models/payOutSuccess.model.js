@@ -17,6 +17,13 @@ const payOutSchema = new Schema({
         unique: true,
         required: [true, "Required Trx ID !"]
     },
+    systemTrxId: {
+        type: String,
+        trim: true,
+        unique: true,
+        index: true,
+        required: [true, "Required system Trx ID !"]
+    },
     amount: {
         type: Number,
         required: [true, "Required Amount !"]

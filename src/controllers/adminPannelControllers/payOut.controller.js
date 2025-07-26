@@ -16,6 +16,7 @@ import { Parser } from "json2csv";
 import crypto from "crypto";
 import BeneficiaryModel from "../../models/beneficiary.model.js";
 import Log from "../../models/Logs.model.js";
+import { genAplhaNumTrxIdUnique } from "../../utils/TrxAutoGenerater.js";
 
 
 const genPayoutMutex = new Mutex();
@@ -543,6 +544,11 @@ export const generatePayOut = asyncHandler(async (req, res) => {
     try {
         if (amount < 1) {
             return res.status(400).json({ message: "Failed", data: `Amount must be 1 or more: ${amount}` });
+        }
+
+        if(true){
+            let a = genAplhaNumTrxIdUnique()
+            return res.status(200).json({message:"Success",trx:a})
         }
 
         const [user] = await userDB.aggregate([

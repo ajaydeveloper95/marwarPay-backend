@@ -44,6 +44,13 @@ const payOutSchemaGen = new Schema({
         index: true,
         required: [true, "Required Trx ID !"]
     },
+    systemTrxId: {
+        type: String,
+        trim: true,
+        unique: true,
+        index: true,
+        required: [true, "Required system Trx ID !"]
+    },
     isSuccess: {
         type: String,
         enum: ["Pending", "Failed", "Success"],
@@ -56,7 +63,7 @@ const payOutSchemaGen = new Schema({
     }
 }, { timestamps: true });
 
-payOutSchemaGen.index({createdAt:1}) 
+payOutSchemaGen.index({ createdAt: 1 })
 // payOutSchemaGen.index({trxId:1}, { unique: true }) 
 
 export default new model("payOutGenerated", payOutSchemaGen);
