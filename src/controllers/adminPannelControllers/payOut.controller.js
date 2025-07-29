@@ -112,6 +112,7 @@ export const allPayOutPayment = asyncHandler(async (req, res) => {
                 $project: {
                     _id: 1,
                     trxId: 1,
+                    systemTrxId: 1,
                     accountHolderName: 1,
                     optxId: 1,
                     accountNumber: 1,
@@ -192,6 +193,7 @@ export const allPayOutPayment = asyncHandler(async (req, res) => {
                     $project: {
                         _id: 1,
                         trxId: 1,
+                        systemTrxId: 1,
                         accountHolderName: 1,
                         optxId: 1,
                         accountNumber: 1,
@@ -227,6 +229,7 @@ export const allPayOutPayment = asyncHandler(async (req, res) => {
             const fields = [
                 "_id",
                 "trxId",
+                "systemTrxId",
                 "accountHolderName",
                 "optxId",
                 "accountNumber",
@@ -500,6 +503,7 @@ export const allPayOutPaymentSuccess = asyncHandler(async (req, res) => {
             $project: {
                 "_id": 1,
                 "trxId": 1,
+                "systemTrxId":1,
                 "accountHolderName": 1,
                 "optxId": 1,
                 "accountNumber": 1,
