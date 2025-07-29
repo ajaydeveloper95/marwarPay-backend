@@ -11,6 +11,7 @@ router.post("/addPayInSwitch", celebrate({
         apiName: Joi.string().required(),
         apiURL: Joi.string().required(),
         apiInfo: Joi.string().optional(),
+        trxIdType: Joi.string().valid("Num", "AlphaNum").optional(),
         isActive: Joi.boolean().optional(),
     })
 }), userVerify, addApiPayIn);
@@ -20,6 +21,7 @@ router.post("/updatePayInSwitch/:id", celebrate({
         apiName: Joi.string().optional(),
         apiURL: Joi.string().optional(),
         apiInfo: Joi.string().optional(),
+        trxIdType: Joi.string().valid("Num", "AlphaNum").optional(),
         isActive: Joi.boolean().optional(),
     }),
     params: Joi.object({
@@ -40,6 +42,7 @@ router.post("/addPayOutSwitch", celebrate({
         apiName: Joi.string().required(),
         apiURL: Joi.string().required(),
         apiInfo: Joi.string().optional(),
+        trxIdType: Joi.string().valid("Num", "AlphaNum").optional(),
         isActive: Joi.boolean().optional(),
     })
 }), userVerify, addApiPayOut);
@@ -49,6 +52,7 @@ router.post("/updatePayOutSwitch/:id", celebrate({
         apiName: Joi.string().optional(),
         apiURL: Joi.string().optional(),
         apiInfo: Joi.string().optional(),
+        trxIdType: Joi.string().valid("Num", "AlphaNum").optional(),
         isActive: Joi.boolean().optional(),
     }),
     params: Joi.object({
