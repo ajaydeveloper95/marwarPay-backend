@@ -1,6 +1,5 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
-import requestIp from "request-ip";
 import userDB from "../models/user.model.js";
 import ipWhiteListDB from "../models/ipWhiteList.model.js"
 
@@ -8,7 +7,7 @@ export const apiValidate = asyncHandler(async (req, res, next) => {
     try {
         const userName = req?.body?.userName ? req?.body?.userName.trim() : null
         const authToken = req?.body?.authToken ? req?.body?.authToken.trim() : null
-        const clientIp = requestIp.getClientIp(req);
+        const clientIp = req?.ip;
         let user = await userDB.findOne({ userName: userName , trxAuthToken: authToken, isActive: true }) 
         
         if (!user) {

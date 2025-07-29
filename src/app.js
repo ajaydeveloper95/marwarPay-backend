@@ -45,6 +45,9 @@ morgan.token("custom", (req, res) => {
     });
 });
 
+// Only trust the first proxy (like NGINX)
+app.set('trust proxy', "loopback");
+
 app.use((req, res, next) => {
     const originalSend = res.send;
     const originalJson = res.json;
