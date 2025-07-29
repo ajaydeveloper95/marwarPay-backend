@@ -12,6 +12,11 @@ const apiPayOutSwitchSchema = new Schema({
     apiInfo: {
         type: String,
     },
+    trxIdType: {
+        type: String,
+        enum: ["Num", "AlphaNum"],
+        default: "AlphaNum"
+    },
     isActive: {
         type: Boolean,
         default: true

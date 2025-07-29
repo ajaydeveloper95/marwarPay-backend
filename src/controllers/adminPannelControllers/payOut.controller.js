@@ -16,7 +16,7 @@ import { Parser } from "json2csv";
 import crypto from "crypto";
 import BeneficiaryModel from "../../models/beneficiary.model.js";
 import Log from "../../models/Logs.model.js";
-import { genAplhaNumTrxIdUnique } from "../../utils/TrxAutoGenerater.js";
+import { genAplhaNumTrxIdUnique, genNumericTrxIdUnique } from "../../utils/TrxAutoGenerater.js";
 
 
 const genPayoutMutex = new Mutex();
@@ -546,11 +546,6 @@ export const generatePayOut = asyncHandler(async (req, res) => {
             return res.status(400).json({ message: "Failed", data: `Amount must be 1 or more: ${amount}` });
         }
 
-        if(true){
-            let a = genAplhaNumTrxIdUnique()
-            return res.status(200).json({message:"Success",trx:a})
-        }
-
         const [user] = await userDB.aggregate([
             {
                 $match: {
@@ -576,6 +571,10 @@ export const generatePayOut = asyncHandler(async (req, res) => {
             return res.status(400).json({ message: "Failed", data: { status_msg: "Server Under Maintenance!", status: 400, trxID: trxId } });
         }
 
+        if (payOutApi?.trxIdType === undefined || payOutApi?.trxIdType === null) {
+            return res.status(400).json({ message: "Failed", data: { status_msg: "Connect Admin ! Account not Config Properly !", status: 400, trxID: trxId } });
+        }
+
         const chargeDetails = packageCharge.payOutChargeRange.find(value => value.lowerLimit <= amount && value.upperLimit > amount);
         if (!chargeDetails) {
             return res.status(400).json({ message: "Failed", data: "Invalid package!" });
@@ -593,9 +592,11 @@ export const generatePayOut = asyncHandler(async (req, res) => {
             return res.status(400).json({ message: "Failed", data: `Total Limit Consume ! Available limit : ${EwalletFundLock}` })
         }
 
+        const systemGenTrxId = payOutApi?.trxIdType === "AlphaNum" ? genAplhaNumTrxIdUnique() : genNumericTrxIdUnique()
+
         const payOutModelGen = await payOutModelGenerate.create({
             memberId: user._id, mobileNumber, accountHolderName, accountNumber, ifscCode,
-            amount, gatwayCharge: chargeAmount, afterChargeAmount: finalAmountDeduct, trxId, pannelUse: payOutApi?.apiName
+            amount, gatwayCharge: chargeAmount, afterChargeAmount: finalAmountDeduct, trxId, systemTrxId: systemGenTrxId, pannelUse: payOutApi?.apiName
         });
 
         const release = await genPayoutMutex.acquire();
@@ -687,7 +688,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
             "mobile_number": mobileNumber,
             "account_number": accountNumber,
             "ifsc_code": ifscCode,
-            "merchant_order_id": trxId
+            "merchant_order_id": systemGenTrxId
         });
         const timestamp = Date.now().toString();
         const path = "/api/v1/payout/process";
@@ -1569,7 +1570,8 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             chargeAmount: chargeAmount,
                             finalAmount: finalAmountDeduct,
                             bankRRN: data?.bank_reference_id,
-                            trxId: data?.merchant_order_id,
+                            trxId: trxId,
+                            systemTrxId: data?.merchant_order_id,
                             optxId: data?.id,
                             isSuccess: "Success"
                         }
@@ -1583,7 +1585,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                         let callBackBody = {
                             optxid: String(data?.id),
                             status: "SUCCESS",
-                            txnid: data?.merchant_order_id,
+                            txnid: trxId,
                             amount: String(amount),
                             rrn: data?.bank_reference_id,
                         }
@@ -1593,7 +1595,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                         let userRespSend = {
                             statusCode: data?.status === "Success" ? 1 : 2 || 0,
                             status: data?.status === "Success" ? 1 : 2 || 0,
-                            trxId: data?.merchant_order_id || 0,
+                            trxId: trxId || 0,
                             opt_msg: data?.acquirer_message || "null"
                         }
                         return new ApiResponse(200, userRespSend)
