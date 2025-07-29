@@ -1683,7 +1683,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                     "mobile_number": mobileNumber,
                     "account_number": accountNumber,
                     "ifsc_code": ifscCode,
-                    "merchant_order_id": trxId
+                    "merchant_order_id": systemGenTrxId
                 },
                 res: async (apiResponse) => {
                     const { data, success } = apiResponse;
@@ -1701,7 +1701,8 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             chargeAmount: chargeAmount,
                             finalAmount: finalAmountDeduct,
                             bankRRN: data?.bank_reference_id,
-                            trxId: data?.merchant_order_id,
+                            trxId: trxId,
+                            systemTrxId: data?.merchant_order_id,
                             optxId: data?.id,
                             isSuccess: "Success"
                         }
@@ -1717,7 +1718,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                         let callBackBody = {
                             optxid: String(data?.id),
                             status: "SUCCESS",
-                            txnid: data?.merchant_order_id,
+                            txnid: trxId,
                             amount: String(amount),
                             rrn: data?.bank_reference_id,
                         }
@@ -1815,7 +1816,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                     "mobile_number": mobileNumber,
                     "account_number": accountNumber,
                     "ifsc_code": ifscCode,
-                    "merchant_order_id": trxId
+                    "merchant_order_id": systemGenTrxId
                 },
                 res: async (apiResponse) => {
                     const { data, success } = apiResponse;
@@ -1833,7 +1834,8 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                             chargeAmount: chargeAmount,
                             finalAmount: finalAmountDeduct,
                             bankRRN: data?.bank_reference_id,
-                            trxId: data?.merchant_order_id,
+                            trxId: trxId,
+                            systemTrxId: data?.merchant_order_id,
                             optxId: data?.id,
                             isSuccess: "Success"
                         }
@@ -4416,9 +4418,9 @@ export const vaultagePayoutCallback = asyncHandler(async (req, res) => {
         const { RRN, Status, StatusCode, Message, ApiWalletTransactionId, APITransactionId } = Data;
         // const Data = req.body
 
-        const dataObject = { txnid: APITransactionId, optxid: ApiWalletTransactionId, rrn: RRN, status: Status }
+        const dataObject = { systemGenTrxId: APITransactionId, optxid: ApiWalletTransactionId, rrn: RRN, status: Status }
 
-        let getDocoment = await payOutModelGenerate.findOne({ trxId: dataObject?.txnid });
+        let getDocoment = await payOutModelGenerate.findOne({ systemTrxId: dataObject?.systemGenTrxId });
 
         if (getDocoment?.isSuccess === "Success" || getDocoment?.isSuccess === "Failed") {
             return res.status(200).json({ message: "Failed", data: `Trx Status Already ${getDocoment?.isSuccess}` })
@@ -4448,15 +4450,14 @@ export const vaultagePayoutCallback = asyncHandler(async (req, res) => {
                 chargeAmount: chargePaymentGatway,
                 finalAmount: finalEwalletDeducted,
                 bankRRN: dataObject?.rrn,
-                trxId: dataObject?.txnid,
+                trxId: getDocoment?.trxId,
+                systemTrxId: dataObject?.systemGenTrxId,
                 optxId: dataObject?.optxid,
                 isSuccess: "Success"
             }
             await payOutModel.create(payoutDataStore)
             let userCallBackResp = await callBackResponse.aggregate([{ $match: { memberId: userInfo[0]?._id } }]);
-            if (userCallBackResp.length !== 1) {
-                return res.status(200).json({ message: "Failed", data: "User have multiple callback Url or Not Found !" })
-            }
+
             let payOutUserCallBackURL = userCallBackResp[0]?.payOutCallBackUrl;
             const config = {
                 headers: {
@@ -4465,15 +4466,13 @@ export const vaultagePayoutCallback = asyncHandler(async (req, res) => {
             };
             let shareObjData = {
                 status: dataObject?.status,
-                txnid: dataObject?.txnid,
+                txnid: getDocoment?.trxId,
                 optxid: dataObject?.optxid,
                 amount: mainAmount,
                 rrn: dataObject?.rrn
             }
             try {
                 const { data } = await axios.post(payOutUserCallBackURL, shareObjData, config)
-
-                console.log("🚀 ~ :4461 ~ data:", data);
 
             } catch (error) {
                 null
@@ -4537,9 +4536,7 @@ export const vaultagePayoutCallback = asyncHandler(async (req, res) => {
                     }]);
 
                     let userCallBackResp = await callBackResponse.aggregate([{ $match: { memberId: userInfo[0]?._id } }]);
-                    if (userCallBackResp.length !== 1) {
-                        return res.status(200).json({ message: "Failed", data: "User have multiple callback Url or Not Found !" })
-                    }
+
                     let payOutUserCallBackURL = userCallBackResp[0]?.payOutCallBackUrl;
                     const config = {
                         headers: {
@@ -4549,14 +4546,12 @@ export const vaultagePayoutCallback = asyncHandler(async (req, res) => {
                     let mainAmount = getDocoment?.amount;
                     let shareObjData = {
                         status: dataObject?.status,
-                        txnid: dataObject?.txnid,
+                        txnid: getDocoment?.trxId,
                         optxid: dataObject?.optxid,
                         amount: mainAmount,
                         rrn: dataObject?.rrn
                     }
                     const { data } = await axios.post(payOutUserCallBackURL, shareObjData, config)
-
-                    console.log("🚀 ~ :4541 ~ data:", data);
 
                 } catch (error) {
                     null
