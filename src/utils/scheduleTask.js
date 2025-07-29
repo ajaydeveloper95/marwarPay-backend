@@ -807,6 +807,7 @@ function migrateDataPayOut() {
                     gatwayCharge: Number(item?.gatwayCharge) || Number(item?.afterChargeAmount) - Number(item?.amount),
                     afterChargeAmount: Number(item?.afterChargeAmount),
                     trxId: String(item?.trxId),
+                    systemTrxId: String(item?.systemTrxId),
                     pannelUse: String(item?.pannelUse),
                     isSuccess: String(item?.isSuccess),
                     migratedAt: new Date(),
