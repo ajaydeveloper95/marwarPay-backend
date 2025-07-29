@@ -2646,7 +2646,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                     BenificiaryAccount: accountNumber,
                     BenificiaryIfsc: ifscCode,
                     Amount: amount,
-                    TransactionId: trxId,
+                    TransactionId: systemGenTrxId,
                     BenificiaryName: accountHolderName,
                     Latitude: "26.949501",
                     Longitude: "75.710884"
@@ -3649,20 +3649,20 @@ export const flipzikCallbackImpactPeek = asyncHandler(async (req, res) => {
         // }
         const { event_type, data } = req.body
 
-        const dataObject = { txnid: data?.object?.merchant_order_id, optxid: data?.object?.id, amount: data?.object?.amount, rrn: data?.object?.bank_reference_id, status: data.object?.status == "Success" ? "SUCCESS" : data.object?.status }
+        const dataObject = { systemGenTrxId: data?.object?.merchant_order_id, optxid: data?.object?.id, amount: data?.object?.amount, rrn: data?.object?.bank_reference_id, status: data.object?.status == "Success" ? "SUCCESS" : data.object?.status }
 
 
         if (event_type != "payout.txn_succeeded") {
             return res.status(200).json({ succes: "Failed", message: "Got It failed" })
         }
 
-        let getDocoment = await payOutModelGenerate.findOne({ trxId: dataObject?.txnid });
+        let getDocoment = await payOutModelGenerate.findOne({ systemTrxId: dataObject?.systemGenTrxId });
 
         if (getDocoment?.isSuccess === "Success" || getDocoment?.isSuccess === "Failed") {
             return res.status(200).json({ message: "Failed", data: `Trx Status Already ${getDocoment?.isSuccess}` })
         }
 
-        if (getDocoment && dataObject?.rrn && getDocoment?.isSuccess === "Pending") {
+        if (getDocoment && dataObject?.status === "SUCCESS" && getDocoment?.isSuccess === "Pending") {
             getDocoment.isSuccess = "Success"
             await getDocoment.save();
 
@@ -3688,15 +3688,14 @@ export const flipzikCallbackImpactPeek = asyncHandler(async (req, res) => {
                 chargeAmount: chargePaymentGatway,
                 finalAmount: finalEwalletDeducted,
                 bankRRN: dataObject?.rrn,
-                trxId: dataObject?.txnid,
+                trxId: getDocoment?.trxId,
+                systemTrxId: dataObject?.systemGenTrxId,
                 optxId: dataObject?.optxid,
                 isSuccess: "Success"
             }
             await payOutModel.create(payoutDataStore)
             let userCallBackResp = await callBackResponse.aggregate([{ $match: { memberId: userInfo[0]?._id } }]);
-            if (userCallBackResp.length !== 1) {
-                return res.status(200).json({ message: "Failed", data: "User have multiple callback Url or Not Found !" })
-            }
+
             let payOutUserCallBackURL = userCallBackResp[0]?.payOutCallBackUrl;
             const config = {
                 headers: {
@@ -3705,7 +3704,7 @@ export const flipzikCallbackImpactPeek = asyncHandler(async (req, res) => {
             };
             let shareObjData = {
                 status: dataObject?.status,
-                txnid: dataObject?.txnid,
+                txnid: dataObject?.systemGenTrxId,
                 optxid: dataObject?.optxid,
                 amount: dataObject?.amount,
                 rrn: dataObject?.rrn
