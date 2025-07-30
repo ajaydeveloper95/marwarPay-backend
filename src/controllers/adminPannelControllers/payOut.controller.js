@@ -375,6 +375,7 @@ export const updatePayoutStatus = asyncHandler(async (req, res) => {
                 finalAmount: payOutGen.afterChargeAmount,
                 bankRRN: bankRRN,
                 trxId: trxId,
+                systemTrxId: payOutGen?.systemTrxId,
                 optxId: optxId,
                 isSuccess: "Success"
             };
@@ -389,7 +390,7 @@ export const updatePayoutStatus = asyncHandler(async (req, res) => {
 
             await Promise.all([
                 payOutModel.create([payoutDataStore], { session }),
-                await customCallBackPayoutUser(user._id, callBackBody)
+                await customCallBackPayoutUser(user?._id, callBackBody)
             ]);
 
             // Commit the transaction
@@ -503,7 +504,7 @@ export const allPayOutPaymentSuccess = asyncHandler(async (req, res) => {
             $project: {
                 "_id": 1,
                 "trxId": 1,
-                "systemTrxId":1,
+                "systemTrxId": 1,
                 "accountHolderName": 1,
                 "optxId": 1,
                 "accountNumber": 1,
