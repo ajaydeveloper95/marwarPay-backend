@@ -4550,7 +4550,7 @@ export const vaultagePayoutCallback = asyncHandler(async (req, res) => {
                     };
                     let mainAmount = getDocoment?.amount;
                     let shareObjData = {
-                        status: dataObject?.status,
+                        status: "FAILED",
                         txnid: getDocoment?.trxId,
                         optxid: dataObject?.optxid,
                         amount: mainAmount,
