@@ -1330,9 +1330,9 @@ export const callBackResponse = asyncHandler(async (req, res) => {
 
         const callBackPayinUrl = callBackPayinUrlResult?.payInCallBackUrl;
 
-        if (!userInfo) {
-            return res.status(400).json({ message: "Failed", data: "User info is missing" });
-        }
+        // if (!userInfo) {
+        //     return res.status(400).json({ message: "Failed", data: "User info is missing" });
+        // }
 
         const chargeRange = userInfo.packageCharge?.payInChargeRange || [];
         const charge = chargeRange.find(range => range.lowerLimit <= data.payerAmount && range.upperLimit > data.payerAmount);
@@ -1368,9 +1368,9 @@ export const callBackResponse = asyncHandler(async (req, res) => {
             TxnInitDate: data.TxnInitDate,
             TxnCompletionDate: data.TxnCompletionDate
         };
-        if (!callBackPayinUrl) {
-            return res.status(400).json({ message: "Failed", data: "Callback URL is missing" });
-        }
+        // if (!callBackPayinUrl) {
+        //     return res.status(400).json({ message: "Failed", data: "Callback URL is missing" });
+        // }
 
         try {
             await axios.post(callBackPayinUrl, userRespSendApi, {
@@ -1808,9 +1808,9 @@ export const callBackProconcept = asyncHandler(async (req, res) => {
 
         const callBackPayinUrl = callBackPayinUrlResult?.payInCallBackUrl;
 
-        if (!userInfo) {
-            return res.status(400).json({ message: "Failed", data: "User info is missing" });
-        }
+        // if (!userInfo) {
+        //     return res.status(400).json({ message: "Failed", data: "User info is missing" });
+        // }
 
         const chargeRange = userInfo.packageCharge?.payInChargeRange || [];
         const charge = chargeRange.find(range => range.lowerLimit <= data.payerAmount && range.upperLimit > data.payerAmount);
@@ -1882,9 +1882,9 @@ export const callBackProconcept = asyncHandler(async (req, res) => {
             TxnInitDate: data.TxnInitDate,
             TxnCompletionDate: data.TxnCompletionDate
         };
-        if (!callBackPayinUrl) {
-            return res.status(400).json({ message: "Failed", data: "Callback URL is missing" });
-        }
+        // if (!callBackPayinUrl) {
+        //     return res.status(400).json({ message: "Failed", data: "Callback URL is missing" });
+        // }
 
         try {
             await axios.post(callBackPayinUrl, userRespSendApi, {
@@ -1948,9 +1948,9 @@ export const callBackComprismo = asyncHandler(async (req, res) => {
 
         const callBackPayinUrl = callBackPayinUrlResult?.payInCallBackUrl;
 
-        if (!userInfo) {
-            return res.status(400).json({ message: "Failed", data: "User info is missing" });
-        }
+        // if (!userInfo) {
+        //     return res.status(400).json({ message: "Failed", data: "User info is missing" });
+        // }
 
         const chargeRange = userInfo.packageCharge?.payInChargeRange || [];
         const charge = chargeRange.find(range => range.lowerLimit <= data.payerAmount && range.upperLimit > data.payerAmount);
@@ -1985,9 +1985,10 @@ export const callBackComprismo = asyncHandler(async (req, res) => {
             TxnInitDate: data.TxnInitDate,
             TxnCompletionDate: data.TxnCompletionDate
         };
-        if (!callBackPayinUrl) {
-            return res.status(400).json({ message: "Failed", data: "Callback URL is missing" });
-        }
+
+        // if (!callBackPayinUrl) {
+        //     return res.status(400).json({ message: "Failed", data: "Callback URL is missing" });
+        // }
 
         try {
             await axios.post(callBackPayinUrl, userRespSendApi, {
@@ -2043,9 +2044,9 @@ export const callBackVaultage = asyncHandler(async (req, res) => {
 
         const callBackPayinUrl = callBackPayinUrlResult?.payInCallBackUrl;
 
-        if (!userInfo) {
-            return res.status(400).json({ message: "Failed", data: "User info is missing" });
-        }
+        // if (!userInfo) {
+        //     return res.status(400).json({ message: "Failed", data: "User info is missing" });
+        // }
 
         const chargeRange = userInfo.packageCharge?.payInChargeRange || [];
         const charge = chargeRange.find(range => range.lowerLimit <= PayerAmount && range.upperLimit > PayerAmount);
@@ -2080,9 +2081,9 @@ export const callBackVaultage = asyncHandler(async (req, res) => {
             TxnInitDate: transactioninitdate,
             TxnCompletionDate: TxnCompletionDate
         };
-        if (!callBackPayinUrl) {
-            return res.status(400).json({ message: "Failed", data: "Callback URL is missing" });
-        }
+        // if (!callBackPayinUrl) {
+        //     return res.status(400).json({ message: "Failed", data: "Callback URL is missing" });
+        // }
 
         try {
             await axios.post(callBackPayinUrl, userRespSendApi, {
@@ -2138,9 +2139,9 @@ export const callBackJiffy = asyncHandler(async (req, res) => {
 
         const callBackPayinUrl = callBackPayinUrlResult?.payInCallBackUrl;
 
-        if (!userInfo) {
-            return res.status(400).json({ message: "Failed", data: "User info is missing" });
-        }
+        // if (!userInfo) {
+        //     return res.status(400).json({ message: "Failed", data: "User info is missing" });
+        // }
 
         const chargeRange = userInfo.packageCharge?.payInChargeRange || [];
         const charge = chargeRange.find(range => range.lowerLimit <= amount && range.upperLimit > amount);
@@ -2211,9 +2212,9 @@ export const callBackJiffy = asyncHandler(async (req, res) => {
             TxnInitDate: created_at,
             TxnCompletionDate: modified_at
         };
-        if (!callBackPayinUrl) {
-            return res.status(400).json({ message: "Failed", data: "Callback URL is missing" });
-        }
+        // if (!callBackPayinUrl) {
+        //     return res.status(400).json({ message: "Failed", data: "Callback URL is missing" });
+        // }
 
         try {
             await axios.post(callBackPayinUrl, userRespSendApi, {
@@ -2266,9 +2267,9 @@ export const callBackSambhavPay = asyncHandler(async (req, res) => {
 
         const callBackPayinUrl = callBackPayinUrlResult?.payInCallBackUrl;
 
-        if (!userInfo) {
-            return res.status(400).json({ message: "Failed", data: "User info is missing" });
-        }
+        // if (!userInfo) {
+        //     return res.status(400).json({ message: "Failed", data: "User info is missing" });
+        // }
 
         const chargeRange = userInfo.packageCharge?.payInChargeRange || [];
         const charge = chargeRange.find(range => range.lowerLimit <= (+amount / 100) && range.upperLimit > (+amount / 100));
@@ -2300,9 +2301,9 @@ export const callBackSambhavPay = asyncHandler(async (req, res) => {
             BankRRN: rrn,
             TxnCompletionDate: txnResponseDate
         };
-        if (!callBackPayinUrl) {
-            return res.status(400).json({ message: "Failed", data: "Callback URL is missing" });
-        }
+        // if (!callBackPayinUrl) {
+        //     return res.status(400).json({ message: "Failed", data: "Callback URL is missing" });
+        // }
 
         try {
             await axios.post(callBackPayinUrl, userRespSendApi, {
@@ -2456,9 +2457,9 @@ export async function callbackAirpay(req, res) {
 
         const callBackPayinUrl = callBackPayinUrlResult?.payInCallBackUrl;
 
-        if (!userInfo) {
-            return res.status(400).json({ message: "Failed", data: "User info is missing" });
-        }
+        // if (!userInfo) {
+        //     return res.status(400).json({ message: "Failed", data: "User info is missing" });
+        // }
 
         const chargeRange = userInfo.packageCharge?.payInChargeRange || [];
         const charge = chargeRange.find(range => range.lowerLimit <= data.payerAmount && range.upperLimit > data.payerAmount);
