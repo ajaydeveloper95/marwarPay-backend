@@ -26,7 +26,7 @@ process.on("unhandledRejection", (err) => {
 });
 
 if (cluster.isPrimary) {
-  for (let num = 0; num < 3; num++) {
+  for (let num = 0; num < 5; num++) {
     cluster.fork()
   }
 } else {
@@ -37,14 +37,14 @@ if (cluster.isPrimary) {
     let connectionStatus = await connection.ping();
     if (connectionStatus === "PONG") {
       console.log("Redis connected successfully");
-
-      app.listen(process.env.SERVER_PORT, () => {
-        console.log(`Server Running At PORT:${process.env.SERVER_PORT}`);
-      })
     } else {
       console.error("Failed to connect to Redis:", redisError.message);
       throw new Error("failed to Redis database or down server!!")
     }
+    // server Connect
+    app.listen(process.env.SERVER_PORT, () => {
+      console.log(`Server Running At PORT:${process.env.SERVER_PORT}`);
+    })
   }).catch((error) => {
     console.log("some issue on database connection", error)
   })
