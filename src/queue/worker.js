@@ -17,6 +17,7 @@ const upiWalletWorker = new Worker("upiWallet", async job => {
     const transactionOptions = {
         readConcern: { level: 'majority' },
         writeConcern: { w: 'majority' },
+        maxTimeMS: 3000
     };
 
 
@@ -27,10 +28,6 @@ const upiWalletWorker = new Worker("upiWallet", async job => {
             new: true,
             session: upiWalletAdd
         })
-
-        if (!upiWalletUpdateResult) {
-            throw new Error(`User not found with ID: ${memberId}`);
-        }
 
         const beforeAmount = upiWalletUpdateResult.upiWalletBalance - transactionAmount
         const afterAmount = upiWalletUpdateResult.upiWalletBalance
@@ -51,7 +48,6 @@ const upiWalletWorker = new Worker("upiWallet", async job => {
         await upiWalletAdd.commitTransaction();
     } catch (error) {
         // console.log(error)
-         console.error("❌ Transaction error:", error);
         await upiWalletAdd.abortTransaction();
     } finally {
         upiWalletAdd.endSession();
