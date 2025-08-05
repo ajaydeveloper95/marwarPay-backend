@@ -1341,7 +1341,7 @@ export const callBackResponse = asyncHandler(async (req, res) => {
         const finalAmountAdd = data.payerAmount - userChargeApply;
 
         const payInCreateResult = await payInModel.create({
-            memberId: pack.memberId,
+            memberId: pack?.memberId,
             payerName: data.payerName,
             trxId: data.txnID,
             amount: data.payerAmount,

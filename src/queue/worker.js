@@ -55,7 +55,7 @@ const upiWalletWorker = new Worker("upiWallet", async job => {
 
 upiWalletWorker.on('completed', (jobId) => {
     // console.log(jobId)
-    // console.log(`✅ Job ${jobId} completed`);
+    console.log(`✅ Job ${jobId} completed`);
     null
 });
 
