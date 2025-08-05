@@ -39,7 +39,7 @@ if (cluster.isPrimary) {
       console.log("Redis connected successfully");
     } else {
       console.error("Failed to connect to Redis:", redisError.message);
-      throw new Error("failed to Redis database or down server!!")
+      throw new Error("failed to Redis database !!")
     }
     // server Connect
     app.listen(process.env.SERVER_PORT, () => {
