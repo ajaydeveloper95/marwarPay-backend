@@ -55,13 +55,13 @@ const upiWalletWorker = new Worker("upiWallet", async job => {
 
 upiWalletWorker.on('completed', (jobId) => {
     // console.log(jobId)
-    console.log(`✅ Job ${jobId} completed`);
+    // console.log(`✅ Job ${jobId} completed`);
     null
 });
 
 // Listen to job failure
 upiWalletWorker.on('failed', (jobId, failedReason) => {
-    console.error(`❌ Job ${jobId} failed: ${failedReason}`);
+    // console.error(`❌ Job ${jobId} failed: ${failedReason}`);
     null
 });
 
