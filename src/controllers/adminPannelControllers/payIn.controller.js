@@ -1271,27 +1271,7 @@ export const callBackResponse = asyncHandler(async (req, res) => {
     try {
         let callBackData = req.body;
 
-        if (Object.keys(req.body).length === 1) {
-            let key = Object.keys(req.body)[0];
-            req.body = JSON.parse(key);
-            callBackData = req.body;
-        }
-
-        let switchApi = req.body.partnerTxnId ? "neyopayPayIn" : req.body.txnID ? "marwarpayInSwitch" : null;
-        if (!switchApi) {
-            return res.status(400).json({ message: "Failed", data: "Invalid transaction data" });
-        }
-
-        const data = switchApi === "neyopayPayIn" ? {
-            status: callBackData?.txnstatus === "Success" ? 200 : 400,
-            payerAmount: callBackData?.amount,
-            payerName: callBackData?.payerName,
-            txnID: callBackData?.partnerTxnId,
-            BankRRN: callBackData?.rrn,
-            payerVA: callBackData?.payerVA,
-            TxnInitDate: callBackData?.TxnInitDate,
-            TxnCompletionDate: callBackData?.TxnCompletionDate
-        } : {
+        const data = {
             status: callBackData?.status,
             payerAmount: callBackData?.payerAmount,
             payerName: callBackData?.payerName,
@@ -1314,80 +1294,86 @@ export const callBackResponse = asyncHandler(async (req, res) => {
             return res.status(400).json({ message: "Failed", data: `Transaction already processed or not created: ${pack?.callBackStatus}` });
         }
 
-        pack.callBackStatus = "Success";
-        await pack.save();
+        if (data?.status == "200") {
+            pack.callBackStatus = "Success";
+            await pack.save();
 
-        const [userInfo] = await userDB.aggregate([
-            { $match: { _id: pack?.memberId } },
-            { $lookup: { from: "packages", localField: "package", foreignField: "_id", as: "package" } },
-            { $unwind: { path: "$package", preserveNullAndEmptyArrays: true } },
-            { $lookup: { from: "payinpackages", localField: "package.packagePayInCharge", foreignField: "_id", as: "packageCharge" } },
-            { $unwind: { path: "$packageCharge", preserveNullAndEmptyArrays: true } },
-            { $project: { _id: 1, userName: 1, upiWalletBalance: 1, packageCharge: 1 } }
-        ]);
+            const [userInfo] = await userDB.aggregate([
+                { $match: { _id: pack?.memberId } },
+                { $lookup: { from: "packages", localField: "package", foreignField: "_id", as: "package" } },
+                { $unwind: { path: "$package", preserveNullAndEmptyArrays: true } },
+                { $lookup: { from: "payinpackages", localField: "package.packagePayInCharge", foreignField: "_id", as: "packageCharge" } },
+                { $unwind: { path: "$packageCharge", preserveNullAndEmptyArrays: true } },
+                { $project: { _id: 1, userName: 1, upiWalletBalance: 1, packageCharge: 1 } }
+            ]);
 
-        const callBackPayinUrlResult = await callBackResponseModel.findOne({ memberId: pack?.memberId, isActive: true }).select("_id payInCallBackUrl isActive");
+            const callBackPayinUrlResult = await callBackResponseModel.findOne({ memberId: pack?.memberId, isActive: true }).select("_id payInCallBackUrl isActive");
 
-        const callBackPayinUrl = callBackPayinUrlResult?.payInCallBackUrl;
+            const callBackPayinUrl = callBackPayinUrlResult?.payInCallBackUrl;
 
-        // if (!userInfo) {
-        //     return res.status(400).json({ message: "Failed", data: "User info is missing" });
-        // }
+            // if (!userInfo) {
+            //     return res.status(400).json({ message: "Failed", data: "User info is missing" });
+            // }
 
-        const chargeRange = userInfo.packageCharge?.payInChargeRange || [];
-        const charge = chargeRange.find(range => range.lowerLimit <= data.payerAmount && range.upperLimit > data.payerAmount);
+            const chargeRange = userInfo.packageCharge?.payInChargeRange || [];
+            const charge = chargeRange.find(range => range.lowerLimit <= data.payerAmount && range.upperLimit > data.payerAmount);
 
-        const userChargeApply = charge.chargeType === "Flat" ? charge.charge : (charge.charge / 100) * data.payerAmount;
-        const finalAmountAdd = data.payerAmount - userChargeApply;
+            const userChargeApply = charge.chargeType === "Flat" ? charge.charge : (charge.charge / 100) * data.payerAmount;
+            const finalAmountAdd = data.payerAmount - userChargeApply;
 
-        const payInCreateResult = await payInModel.create({
-            memberId: pack?.memberId,
-            payerName: data.payerName,
-            trxId: data.txnID,
-            amount: data.payerAmount,
-            chargeAmount: userChargeApply,
-            finalAmount: finalAmountAdd,
-            vpaId: data.payerVA,
-            bankRRN: data.BankRRN,
-            description: `QR Generated Successfully Amount:${data.payerAmount} PayerVa:${data.payerVA} BankRRN:${data.BankRRN}`,
-            trxCompletionDate: data.TxnCompletionDate,
-            trxInItDate: data.TxnInitDate,
-            isSuccess: "Success"
-        })
+            const payInCreateResult = await payInModel.create({
+                memberId: pack?.memberId,
+                payerName: data.payerName,
+                trxId: data.txnID,
+                amount: data.payerAmount,
+                chargeAmount: userChargeApply,
+                finalAmount: finalAmountAdd,
+                vpaId: data.payerVA,
+                bankRRN: data.BankRRN,
+                description: `QR Generated Successfully Amount:${data.payerAmount} PayerVa:${data.payerVA} BankRRN:${data.BankRRN}`,
+                trxCompletionDate: data.TxnCompletionDate,
+                trxInItDate: data.TxnInitDate,
+                isSuccess: "Success"
+            })
 
-        // wallet upi handle
-        await upiWalletJobs(pack?.memberId, finalAmountAdd, data?.txnID)
+            // wallet upi handle
+            await upiWalletJobs(pack?.memberId, finalAmountAdd, data?.txnID)
 
-        const userRespSendApi = {
-            status: data.status,
-            payerAmount: data.payerAmount,
-            payerName: data.payerName,
-            txnID: data.txnID,
-            BankRRN: data.BankRRN,
-            payerVA: data.payerVA,
-            TxnInitDate: data.TxnInitDate,
-            TxnCompletionDate: data.TxnCompletionDate
-        };
-        // if (!callBackPayinUrl) {
-        //     return res.status(400).json({ message: "Failed", data: "Callback URL is missing" });
-        // }
+            const userRespSendApi = {
+                status: data?.status,
+                payerAmount: data?.payerAmount,
+                payerName: data?.payerName,
+                txnID: data?.txnID,
+                BankRRN: data?.BankRRN,
+                payerVA: data?.payerVA,
+                TxnInitDate: data?.TxnInitDate,
+                TxnCompletionDate: data?.TxnCompletionDate
+            };
+            // if (!callBackPayinUrl) {
+            //     return res.status(400).json({ message: "Failed", data: "Callback URL is missing" });
+            // }
 
-        try {
-            await axios.post(callBackPayinUrl, userRespSendApi, {
-                headers: {
-                    "Accept": "application/json",
-                    "Content-Type": "application/json"
-                }
-            });
-        } catch (error) {
-            null
+            try {
+                await axios.post(callBackPayinUrl, userRespSendApi, {
+                    headers: {
+                        "Accept": "application/json",
+                        "Content-Type": "application/json"
+                    }
+                });
+            } catch (error) {
+                null
+            }
+
+            return res.status(200).json(new ApiResponse(200, { pid: process.pid }, "Successfully"));
         }
-
-        return res.status(200).json(new ApiResponse(200, { pid: process.pid }, "Successfully"));
+        else {
+            return res.status(200).json(new ApiResponse(200, { pid: process.pid }, "Nothing Found Invalid !!"));
+        }
     } catch (error) {
         console.error(error);
         return res.status(500).json({ success: "Failed", message: error.message || "Internal server error!" });
     }
+
     // finally {
     //     release();
     // }
