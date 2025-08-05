@@ -1,7 +1,6 @@
 import { Worker } from 'bullmq';
 import { connection } from "./queue.js"
 import upiWalletModel from "../models/upiWallet.model.js";
-import qrGeneration from "../models/qrGeneration.model.js";
 import userDB from '../models/user.model.js';
 
 const upiWalletWorker = new Worker("upiWallet", async job => {
@@ -46,10 +45,6 @@ const upiWalletWorker = new Worker("upiWallet", async job => {
         await upiWalletAdd.commitTransaction();
     } catch (error) {
         // console.log(error)
-
-        const qrDataUpdate = await qrGeneration.findOne({ trxId: txnID });
-        qrDataUpdate.callBackStatus = "Pending";
-        await qrDataUpdate.save()
         await upiWalletAdd.abortTransaction();
     } finally {
         upiWalletAdd.endSession();
