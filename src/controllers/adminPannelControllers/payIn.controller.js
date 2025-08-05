@@ -20,6 +20,7 @@ import payInChargeModel from "../../models/payInCharge.model.js";
 import crypto from "crypto"
 import { airPaydecryptText, airPayencryptText } from "../../utils/CryptoEnc.js";
 import SambhavPayin from '../../utils/SambhavPay.js'
+import { upiWalletJobs } from "../../jobs/upiWallet.jobs.js";
 
 const transactionMutex = new Mutex();
 // const generatePayinMutex = new Mutex();
@@ -1354,44 +1355,8 @@ export const callBackResponse = asyncHandler(async (req, res) => {
             isSuccess: "Success"
         })
 
-        // session locking
-        // db locking with deducted amount 
-        // const release = await transactionMutex.acquire();
-        const upiWalletAdd = await userDB.startSession();
-        const transactionOptions = {
-            readConcern: { level: 'linearizable' },
-            writeConcern: { w: 'majority' },
-            readPreference: { mode: 'primary' },
-            maxTimeMS: 1500
-        };
-        try {
-            upiWalletAdd.startTransaction(transactionOptions);
-            const opts = { upiWalletAdd };
-            const upiWalletUpdateResult = await userDB.findByIdAndUpdate(userInfo._id, { $inc: { upiWalletBalance: + finalAmountAdd } }, {
-                returnDocument: 'after',
-                upiWalletAdd
-            })
-
-            const upiWalletDataObject = {
-                memberId: upiWalletUpdateResult?._id,
-                transactionType: "Cr.",
-                transactionAmount: finalAmountAdd,
-                beforeAmount: Number(upiWalletUpdateResult?.upiWalletBalance) - Number(finalAmountAdd),
-                afterAmount: upiWalletUpdateResult?.upiWalletBalance,
-                description: `Successfully Cr. amount: ${finalAmountAdd} with trxId: ${data.txnID}`,
-                transactionStatus: "Success"
-            }
-
-            await upiWalletModel.create([upiWalletDataObject], opts);
-            // Commit the transaction
-            await upiWalletAdd.commitTransaction();
-        } catch (error) {
-            await upiWalletAdd.abortTransaction();
-        } finally {
-            upiWalletAdd.endSession();
-            // release()
-        }
-        // session locking end
+        // wallet upi handle
+        await upiWalletJobs(pack?.memberId, finalAmountAdd, data?.txnID)
 
         const userRespSendApi = {
             status: data.status,
@@ -2008,44 +1973,7 @@ export const callBackComprismo = asyncHandler(async (req, res) => {
             isSuccess: "Success"
         })
 
-        // session locking
-        // db locking with deducted amount 
-        // const release = await transactionMutex.acquire();
-        const upiWalletAdd = await userDB.startSession();
-        const transactionOptions = {
-            readConcern: { level: 'linearizable' },
-            writeConcern: { w: 'majority' },
-            readPreference: { mode: 'primary' },
-            maxTimeMS: 1500
-        };
-        try {
-            upiWalletAdd.startTransaction(transactionOptions);
-            const opts = { upiWalletAdd };
-            const upiWalletUpdateResult = await userDB.findByIdAndUpdate(userInfo._id, { $inc: { upiWalletBalance: + finalAmountAdd } }, {
-                returnDocument: 'after',
-                upiWalletAdd
-            })
-
-            const upiWalletDataObject = {
-                memberId: upiWalletUpdateResult?._id,
-                transactionType: "Cr.",
-                transactionAmount: finalAmountAdd,
-                beforeAmount: Number(upiWalletUpdateResult?.upiWalletBalance) - Number(finalAmountAdd),
-                afterAmount: upiWalletUpdateResult?.upiWalletBalance,
-                description: `Successfully Cr. amount: ${finalAmountAdd} with trxId: ${data.txnID}`,
-                transactionStatus: "Success"
-            }
-
-            await upiWalletModel.create([upiWalletDataObject], opts);
-            // Commit the transaction
-            await upiWalletAdd.commitTransaction();
-        } catch (error) {
-            await upiWalletAdd.abortTransaction();
-        } finally {
-            upiWalletAdd.endSession();
-            // release()
-        }
-        // session locking end
+        await upiWalletJobs(pack?.memberId, finalAmountAdd, data?.txnID)
 
         const userRespSendApi = {
             status: data.status,
@@ -2140,43 +2068,7 @@ export const callBackVaultage = asyncHandler(async (req, res) => {
             isSuccess: "Success"
         })
 
-        // session locking
-        // db locking with deducted amount 
-        // const release = await transactionMutex.acquire();
-        const upiWalletAdd = await userDB.startSession();
-        const transactionOptions = {
-            readConcern: { level: 'linearizable' },
-            writeConcern: { w: 'majority' },
-            readPreference: { mode: 'primary' },
-            maxTimeMS: 1500
-        };
-        try {
-            upiWalletAdd.startTransaction(transactionOptions);
-            const opts = { upiWalletAdd };
-            const upiWalletUpdateResult = await userDB.findByIdAndUpdate(userInfo._id, { $inc: { upiWalletBalance: + finalAmountAdd } }, {
-                returnDocument: 'after',
-                upiWalletAdd
-            })
-
-            const upiWalletDataObject = {
-                memberId: upiWalletUpdateResult?._id,
-                transactionType: "Cr.",
-                transactionAmount: finalAmountAdd,
-                beforeAmount: Number(upiWalletUpdateResult?.upiWalletBalance) - Number(finalAmountAdd),
-                afterAmount: upiWalletUpdateResult?.upiWalletBalance,
-                description: `Successfully Cr. amount: ${finalAmountAdd} with trxId: ${ApiUserReferenceId}`,
-                transactionStatus: "Success"
-            }
-
-            await upiWalletModel.create([upiWalletDataObject], opts);
-            // Commit the transaction
-            await upiWalletAdd.commitTransaction();
-        } catch (error) {
-            await upiWalletAdd.abortTransaction();
-        } finally {
-            upiWalletAdd.endSession();
-            // release()
-        }
+        await upiWalletJobs(trx?.memberId, finalAmountAdd, ApiUserReferenceId)
 
         const userRespSendApi = {
             status: TxnStatus === "SUCCESS" ? 200 : 400,
@@ -2398,43 +2290,7 @@ export const callBackSambhavPay = asyncHandler(async (req, res) => {
             isSuccess: "Success"
         })
 
-        // session locking
-        // db locking with deducted amount 
-        // const release = await transactionMutex.acquire();
-        const upiWalletAdd = await userDB.startSession();
-        const transactionOptions = {
-            readConcern: { level: 'linearizable' },
-            writeConcern: { w: 'majority' },
-            readPreference: { mode: 'primary' },
-            maxTimeMS: 1500
-        };
-        try {
-            upiWalletAdd.startTransaction(transactionOptions);
-            const opts = { upiWalletAdd };
-            const upiWalletUpdateResult = await userDB.findByIdAndUpdate(userInfo._id, { $inc: { upiWalletBalance: + finalAmountAdd } }, {
-                returnDocument: 'after',
-                upiWalletAdd
-            })
-
-            const upiWalletDataObject = {
-                memberId: upiWalletUpdateResult?._id,
-                transactionType: "Cr.",
-                transactionAmount: finalAmountAdd,
-                beforeAmount: Number(upiWalletUpdateResult?.upiWalletBalance) - Number(finalAmountAdd),
-                afterAmount: upiWalletUpdateResult?.upiWalletBalance,
-                description: `Successfully Cr. amount: ${finalAmountAdd} with trxId: ${orderId}`,
-                transactionStatus: "Success"
-            }
-
-            await upiWalletModel.create([upiWalletDataObject], opts);
-            // Commit the transaction
-            await upiWalletAdd.commitTransaction();
-        } catch (error) {
-            await upiWalletAdd.abortTransaction();
-        } finally {
-            upiWalletAdd.endSession();
-            // release()
-        }
+        await upiWalletJobs(trx.memberId, finalAmountAdd, orderId)
 
         const userRespSendApi = {
             status: txnRespCode == "00" ? 200 : 400,
@@ -2625,44 +2481,7 @@ export async function callbackAirpay(req, res) {
             isSuccess: "Success"
         })
 
-        // session locking
-        // db locking with deducted amount 
-        const release = await transactionMutex.acquire();
-        const upiWalletAdd = await userDB.startSession();
-        const transactionOptions = {
-            readConcern: { level: 'linearizable' },
-            writeConcern: { w: 'majority' },
-            readPreference: { mode: 'primary' },
-            maxTimeMS: 1500
-        };
-        try {
-            upiWalletAdd.startTransaction(transactionOptions);
-            const opts = { upiWalletAdd };
-            const upiWalletUpdateResult = await userDB.findByIdAndUpdate(userInfo._id, { $inc: { upiWalletBalance: + finalAmountAdd } }, {
-                returnDocument: 'after',
-                upiWalletAdd
-            })
-
-            const upiWalletDataObject = {
-                memberId: upiWalletUpdateResult?._id,
-                transactionType: "Cr.",
-                transactionAmount: finalAmountAdd,
-                beforeAmount: Number(upiWalletUpdateResult?.upiWalletBalance) - Number(finalAmountAdd),
-                afterAmount: upiWalletUpdateResult?.upiWalletBalance,
-                description: `Successfully Cr. amount: ${finalAmountAdd} with trxId: ${data.txnID}`,
-                transactionStatus: "Success"
-            }
-
-            await upiWalletModel.create([upiWalletDataObject], opts);
-            // Commit the transaction
-            await upiWalletAdd.commitTransaction();
-        } catch (error) {
-            await upiWalletAdd.abortTransaction();
-        } finally {
-            upiWalletAdd.endSession();
-            release()
-        }
-        // session locking end
+        await upiWalletJobs(pack?.memberId, finalAmountAdd, data?.txnID)
 
         const userRespSendApi = {
             status: data?.status,
