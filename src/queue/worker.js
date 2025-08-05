@@ -61,7 +61,7 @@ upiWalletWorker.on('completed', (jobId) => {
 
 // Listen to job failure
 upiWalletWorker.on('failed', (jobId, failedReason) => {
-    // console.error(`❌ Job ${jobId} failed: ${failedReason}`);
+    console.error(`❌ Job ${jobId} failed: ${failedReason}`);
     null
 });
 
