@@ -19,7 +19,7 @@ const upiWalletWorker = new Worker("upiWallet", async job => {
 
 
     try {
-        upiWalletAdd.startTransaction(transactionOptions);
+        await upiWalletAdd.startTransaction(transactionOptions);
         const opts = { upiWalletAdd };
         const upiWalletUpdateResult = await userDB.findByIdAndUpdate(memberId, { $inc: { upiWalletBalance: + transactionAmount } }, {
             returnDocument: 'after',
