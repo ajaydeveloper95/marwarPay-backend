@@ -8,23 +8,29 @@ const upiWalletWorker = new Worker("upiWallet", async job => {
     // start
     const { memberId, transactionAmount, txnID } = job?.data
 
+    if (!memberId || !transactionAmount || !txnID) {
+        throw new Error("Invalid job data: memberId, transactionAmount, or txnID missing.");
+    }
+
     // db locking with deducted amount 
     const upiWalletAdd = await userDB.startSession();
     const transactionOptions = {
-        readConcern: { level: 'linearizable' },
+        readConcern: { level: 'majority' },
         writeConcern: { w: 'majority' },
-        readPreference: { mode: 'primary' },
-        maxTimeMS: 1500
     };
 
 
     try {
         upiWalletAdd.startTransaction(transactionOptions);
-        const opts = { upiWalletAdd };
+        // const opts = { session: upiWalletAdd };
         const upiWalletUpdateResult = await userDB.findByIdAndUpdate(memberId, { $inc: { upiWalletBalance: + transactionAmount } }, {
-            returnDocument: 'after',
-            upiWalletAdd
+            new: true,
+            session: upiWalletAdd
         })
+
+        if (!upiWalletUpdateResult) {
+            throw new Error(`User not found with ID: ${memberId}`);
+        }
 
         const beforeAmount = upiWalletUpdateResult.upiWalletBalance - transactionAmount
         const afterAmount = upiWalletUpdateResult.upiWalletBalance
@@ -39,12 +45,13 @@ const upiWalletWorker = new Worker("upiWallet", async job => {
             transactionStatus: "Success"
         }
 
-        await upiWalletModel.create([upiWalletDataObject], opts);
+        await upiWalletModel.create([upiWalletDataObject], { session: upiWalletAdd });
 
         // Commit the transaction
         await upiWalletAdd.commitTransaction();
     } catch (error) {
         // console.log(error)
+         console.error("❌ Transaction error:", error);
         await upiWalletAdd.abortTransaction();
     } finally {
         upiWalletAdd.endSession();
