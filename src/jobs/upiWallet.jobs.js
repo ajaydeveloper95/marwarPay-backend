@@ -5,8 +5,12 @@ export const upiWalletJobs = async (memberId, transactionAmount, txnID) => {
     const payinQueueData = await upiWalletQueue.add("upiWalletAdded", {
         memberId, transactionAmount, txnID
     }, {
-        removeOnComplete: true,
-        attempts: 0
+        attempts: 3,
+        backoff: {
+            type: 'exponential',
+            delay: 5000 // 5 seconds
+        },
+        removeOnComplete: true
     })
 
     // console.log(payinQueueData?.id)

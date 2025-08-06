@@ -51,7 +51,7 @@ const upiWalletWorker = new Worker("upiWallet", async job => {
     }
     // session locking end
 
-}, { connection, prefix: 'zanithpay-backend' })
+}, { concurrency: 1, connection, prefix: 'zanithpay-backend' })
 
 upiWalletWorker.on('completed', (jobId) => {
     // console.log(jobId)
