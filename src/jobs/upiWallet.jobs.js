@@ -6,7 +6,7 @@ export const upiWalletJobs = async (memberId, transactionAmount, txnID) => {
         memberId, transactionAmount, txnID
     }, {
         removeOnComplete: true,
-        attempts: 1
+        attempts: 0
     })
 
     // console.log(payinQueueData?.id)
