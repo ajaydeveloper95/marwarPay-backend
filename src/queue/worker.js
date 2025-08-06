@@ -44,24 +44,25 @@ const upiWalletWorker = new Worker("upiWallet", async job => {
         // Commit the transaction
         await upiWalletAdd.commitTransaction();
     } catch (error) {
-        // console.log(error)
+        console.log(error)
         await upiWalletAdd.abortTransaction();
     } finally {
         upiWalletAdd.endSession();
     }
     // session locking end
 
-}, { connection, prefix: 'zanithpay-backend' })
+}, { concurrency: 1, connection, prefix: 'zanithpay-backend' })
 
 upiWalletWorker.on('completed', (jobId) => {
     // console.log(jobId)
-    // console.log(`✅ Job ${jobId} completed`);
+    // console.log(`✅ Job ${jobId?.data} completed`);
     null
 });
 
 // Listen to job failure
 upiWalletWorker.on('failed', (jobId, failedReason) => {
-    // console.error(`❌ Job ${jobId} failed: ${failedReason}`);
+    // console.log(jobId?.data, jobId, "data")
+    // console.error(`❌ Job ${jobId?.data} failed: ${failedReason}`);
     null
 });
 
