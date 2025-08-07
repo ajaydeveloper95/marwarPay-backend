@@ -5,5 +5,3 @@ export const connection = new IORedis({ host: 'localhost', port: 6379, maxRetrie
 export const upiWalletQueue = new Queue('upiWallet', { connection, prefix: 'zanithpay-backend', lockDuration: 60000, maxStalledCount: 3 });
 
 export const eWalletQueue = new Queue('eWallet', { connection, prefix: 'zanithpay-backend', lockDuration: 60000, maxStalledCount: 3 });
-
-export { upiWalletQueue, eWalletQueue };

@@ -17,6 +17,7 @@ import crypto from "crypto";
 import BeneficiaryModel from "../../models/beneficiary.model.js";
 import Log from "../../models/Logs.model.js";
 import { genAplhaNumTrxIdUnique, genNumericTrxIdUnique } from "../../utils/TrxAutoGenerater.js";
+import { eWalletCrJobs } from "../../jobs/eWallet.jobs.js";
 
 
 const genPayoutMutex = new Mutex();
@@ -3723,60 +3724,15 @@ export const flipzikCallbackImpactPeek = asyncHandler(async (req, res) => {
             }
             return res.status(200).json(new ApiResponse(200, null, "Successfully !"))
         } else if (dataObject.status.toLowerCase() == "failed" || data?.object?.master_status?.toLowerCase() == "failed") {
-            const session = await mongoose.startSession();
 
-            try {
-                session.startTransaction();
-                let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(
-                    getDocoment?._id,
-                    { isSuccess: "Failed" },
-                    { new: true, session }
-                );
+            let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(getDocoment?._id,
+                { isSuccess: "Failed" },
+                { new: true }
+            );
 
-                // console.log(payoutModelData?.trxId, "with failed");
+            await eWalletCrJobs(payoutModelData?.memberId, payoutModelData?.amount, payoutModelData?.gatwayCharge, payoutModelData?.trxId);
 
-                let finalEwalletDeducted = payoutModelData?.afterChargeAmount;
-
-                // Update user wallet
-                let userWallet = await userDB.findByIdAndUpdate(
-                    payoutModelData?.memberId,
-                    { $inc: { EwalletBalance: +finalEwalletDeducted } },
-                    { returnDocument: "after", session }
-                );
-
-                if (!userWallet) {
-                    throw new Error("User wallet not found!");
-                }
-
-                let afterAmount = userWallet?.EwalletBalance;
-                let beforeAmount = userWallet?.EwalletBalance - finalEwalletDeducted;
-
-                let walletModelDataStore = {
-                    memberId: payoutModelData?.memberId,
-                    transactionType: "Cr.",
-                    transactionAmount: payoutModelData?.amount,
-                    beforeAmount: beforeAmount,
-                    chargeAmount: payoutModelData?.gatwayCharge,
-                    afterAmount: afterAmount,
-                    description: `Successfully Cr. amount: ${Number(finalEwalletDeducted)} with transaction Id: ${payoutModelData?.trxId}`,
-                    transactionStatus: "Success",
-                };
-
-                // Store eWallet transaction
-                await walletModel.create([walletModelDataStore], { session }); // Pass session
-
-                // Commit the transaction
-                await session.commitTransaction();
-                session.endSession();
-
-                return res.status(200).json({ message: "Failed", data: "Transaction processed successfully!" });
-            } catch (error) {
-
-                await session.abortTransaction();
-                session.endSession();
-                console.error("Transaction failed:", error);
-                return res.status(200).json({ message: "Error", error: error.message });
-            }
+            return res.status(200).json({ message: "Failed", data: "Transaction processed successfully!" });
         } else {
             return res.status(200).json({ message: "Failed", data: "Trx Not Found !" })
         }

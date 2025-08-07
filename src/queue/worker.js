@@ -103,7 +103,7 @@ const eWalletWorker = new Worker("eWallet", async job => {
                 beforeAmount: beforeAmount,
                 chargeAmount: chargeAmount,
                 afterAmount: afterAmount,
-                description: `Successfully Dr. amount: ${Number(transactionAmount)} with transaction Id: ${txnID}`,
+                description: `Successfully Cr. amount: ${Number(transactionAmount)} with transaction Id: ${txnID}`,
                 transactionStatus: "Success",
             }
 
