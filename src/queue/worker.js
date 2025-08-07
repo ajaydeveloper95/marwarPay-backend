@@ -45,7 +45,7 @@ const upiWalletWorker = new Worker("upiWallet", async job => {
         // Commit the transaction
         await upiWalletAdd.commitTransaction();
     } catch (error) {
-        console.log(error)
+        // console.log(error)
         await upiWalletAdd.abortTransaction();
     } finally {
         upiWalletAdd.endSession();
@@ -154,14 +154,14 @@ const eWalletWorker = new Worker("eWallet", async job => {
 
 eWalletWorker.on('completed', (jobId) => {
     // console.log(jobId)
-    console.log(`✅ Job ${jobId?.data} completed`);
+    // console.log(`✅ Job ${jobId?.data} completed`);
     null
 });
 
 // Listen to job failure
 eWalletWorker.on('failed', (jobId, failedReason) => {
     // console.log(jobId?.data, jobId, "data")
-    console.error(`❌ Job ${jobId?.data} failed: ${failedReason}`);
+    // console.error(`❌ Job ${jobId?.data} failed: ${failedReason}`);
     null
 });
 
