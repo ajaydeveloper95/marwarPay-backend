@@ -26,7 +26,7 @@ process.on("unhandledRejection", (err) => {
 });
 
 if (cluster.isPrimary) {
-  for (let num = 0; num < 5; num++) {
+  for (let num = 0; num < numCpu; num++) {
     cluster.fork()
   }
 } else {
