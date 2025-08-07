@@ -17,7 +17,7 @@ import crypto from "crypto";
 import BeneficiaryModel from "../../models/beneficiary.model.js";
 import Log from "../../models/Logs.model.js";
 import { genAplhaNumTrxIdUnique, genNumericTrxIdUnique } from "../../utils/TrxAutoGenerater.js";
-import { eWalletCrJobs } from "../../jobs/eWallet.jobs.js";
+import { eWalletCrJobs, eWalletDrJobs } from "../../jobs/eWallet.jobs.js";
 
 
 const genPayoutMutex = new Mutex();
@@ -3730,7 +3730,8 @@ export const flipzikCallbackImpactPeek = asyncHandler(async (req, res) => {
                 { new: true }
             );
 
-            await eWalletCrJobs(payoutModelData?.memberId, payoutModelData?.amount, payoutModelData?.gatwayCharge, payoutModelData?.trxId);
+            // await eWalletCrJobs(payoutModelData?.memberId, payoutModelData?.amount, payoutModelData?.gatwayCharge, payoutModelData?.trxId);
+            await eWalletDrJobs(payoutModelData?.memberId, payoutModelData?.amount, payoutModelData?.gatwayCharge, payoutModelData?.trxId);
             // done
 
             return res.status(200).json({ message: "Failed", data: "Transaction processed successfully!" });
