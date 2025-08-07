@@ -3738,6 +3738,7 @@ export const flipzikCallbackImpactPeek = asyncHandler(async (req, res) => {
             return res.status(200).json({ message: "Failed", data: "Trx Not Found !" })
         }
     } catch (error) {
+        console.log(error)
         return res.status(200).json({ message: "Failed", data: "Internel server Error !" })
     }
     // finally {

@@ -13,7 +13,7 @@ export const eWalletCrJobs = async (memberId, transactionAmount, chargeAmount, t
         removeOnComplete: true
     })
 
-    return "Success Added your Job"
+    return "Success Added your Job in success"
 }
 
 export const eWalletDrJobs = async (memberId, transactionAmount, chargeAmount, txnID) => {
