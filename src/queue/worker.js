@@ -84,16 +84,17 @@ const eWalletWorker = new Worker("eWallet", async job => {
     try {
         walletDucdsession.startTransaction(transactionOptions);
         const opts = { walletDucdsession };
+        let finalAmount = Number(transactionAmount) + Number(chargeAmount)
 
         if (transactionType === "Cr.") {
             // update wallet Cr.
-            let userWallet = await userDB.findByIdAndUpdate(memberId, { $inc: { EwalletBalance: + transactionAmount, EwalletFundLock: + transactionAmount } }, {
+            let userWallet = await userDB.findByIdAndUpdate(memberId, { $inc: { EwalletBalance: + finalAmount, EwalletFundLock: + finalAmount } }, {
                 returnDocument: 'after',
                 walletDucdsession
             })
 
             let afterAmount = userWallet?.EwalletBalance
-            let beforeAmount = userWallet?.EwalletBalance - transactionAmount;
+            let beforeAmount = userWallet?.EwalletBalance - finalAmount;
 
             // ewallet store 
             let walletModelDataStore = {
@@ -103,7 +104,7 @@ const eWalletWorker = new Worker("eWallet", async job => {
                 beforeAmount: beforeAmount,
                 chargeAmount: chargeAmount,
                 afterAmount: afterAmount,
-                description: `Successfully Cr. amount: ${Number(transactionAmount)} with transaction Id: ${txnID}`,
+                description: `Successfully Cr. amount: ${Number(finalAmount)} with transaction Id: ${txnID}`,
                 transactionStatus: "Success",
             }
 
@@ -112,13 +113,13 @@ const eWalletWorker = new Worker("eWallet", async job => {
             await walletDucdsession.commitTransaction();
         } else if (transactionType === "Dr.") {
             // update wallet 
-            let userWallet = await userDB.findByIdAndUpdate(memberId, { $inc: { EwalletBalance: - transactionAmount, EwalletFundLock: - transactionAmount } }, {
+            let userWallet = await userDB.findByIdAndUpdate(memberId, { $inc: { EwalletBalance: - finalAmount, EwalletFundLock: - finalAmount } }, {
                 returnDocument: 'after',
                 walletDucdsession
             })
 
             let afterAmount = userWallet?.EwalletBalance
-            let beforeAmount = userWallet?.EwalletBalance + transactionAmount;
+            let beforeAmount = userWallet?.EwalletBalance + finalAmount;
 
             // ewallet store 
             let walletModelDataStore = {
@@ -128,7 +129,7 @@ const eWalletWorker = new Worker("eWallet", async job => {
                 beforeAmount: beforeAmount,
                 chargeAmount: chargeAmount,
                 afterAmount: afterAmount,
-                description: `Successfully Dr. amount: ${Number(transactionAmount)} with transaction Id: ${txnID}`,
+                description: `Successfully Dr. amount: ${Number(finalAmount)} with transaction Id: ${txnID}`,
                 transactionStatus: "Success",
             }
 
