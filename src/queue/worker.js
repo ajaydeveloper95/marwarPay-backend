@@ -97,7 +97,7 @@ const eWalletWorker = new Worker("eWallet", async job => {
 
             // ewallet store 
             let walletModelDataStore = {
-                memberId: user?._id,
+                memberId: userWallet?._id,
                 transactionType: "Cr.",
                 transactionAmount: transactionAmount,
                 beforeAmount: beforeAmount,
@@ -122,7 +122,7 @@ const eWalletWorker = new Worker("eWallet", async job => {
 
             // ewallet store 
             let walletModelDataStore = {
-                memberId: user?._id,
+                memberId: userWallet?._id,
                 transactionType: "Dr.",
                 transactionAmount: transactionAmount,
                 beforeAmount: beforeAmount,
@@ -136,7 +136,8 @@ const eWalletWorker = new Worker("eWallet", async job => {
             // Commit the transaction
             await walletDucdsession.commitTransaction();
         } else {
-            null
+            // console.log("other")
+            await walletDucdsession.abortTransaction();
         }
         // console.log('Transaction committed successfully');
     } catch (error) {
@@ -152,14 +153,14 @@ const eWalletWorker = new Worker("eWallet", async job => {
 
 eWalletWorker.on('completed', (jobId) => {
     // console.log(jobId)
-    // console.log(`✅ Job ${jobId?.data} completed`);
+    console.log(`✅ Job ${jobId?.data} completed`);
     null
 });
 
 // Listen to job failure
 eWalletWorker.on('failed', (jobId, failedReason) => {
     // console.log(jobId?.data, jobId, "data")
-    // console.error(`❌ Job ${jobId?.data} failed: ${failedReason}`);
+    console.error(`❌ Job ${jobId?.data} failed: ${failedReason}`);
     null
 });
 
