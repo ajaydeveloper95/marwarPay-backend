@@ -605,64 +605,6 @@ export const generatePayOut = asyncHandler(async (req, res) => {
             amount, gatwayCharge: chargeAmount, afterChargeAmount: finalAmountDeduct, trxId, systemTrxId: systemGenTrxId, pannelUse: payOutApi?.apiName
         });
 
-        const release = await genPayoutMutex.acquire();
-        // db locking with deducted amount 
-        const walletDucdsession = await userDB.startSession();
-        const transactionOptions = {
-            readConcern: { level: 'linearizable' },
-            writeConcern: { w: 'majority' },
-            readPreference: { mode: 'primary' },
-            maxTimeMS: 1500
-        };
-        // wallet deducted and store ewallet trx
-        try {
-            walletDucdsession.startTransaction(transactionOptions);
-            const opts = { walletDucdsession };
-
-            // update wallet 
-            let userWallet = await userDB.findByIdAndUpdate(user?._id, { $inc: { EwalletBalance: - finalAmountDeduct, EwalletFundLock: - finalAmountDeduct } }, {
-                returnDocument: 'after',
-                walletDucdsession
-            })
-
-            let afterAmount = userWallet?.EwalletBalance
-            let beforeAmount = userWallet?.EwalletBalance + finalAmountDeduct;
-
-            // ewallet store 
-            let walletModelDataStore = {
-                memberId: user?._id,
-                transactionType: "Dr.",
-                transactionAmount: amount,
-                beforeAmount: beforeAmount,
-                chargeAmount: chargeAmount,
-                afterAmount: afterAmount,
-                description: `Successfully Dr. amount: ${Number(finalAmountDeduct)} with transaction Id: ${trxId}`,
-                transactionStatus: "Success",
-            }
-
-            await walletModel.create([walletModelDataStore], opts)
-            // Commit the transaction
-            await walletDucdsession.commitTransaction();
-            // console.log('Transaction committed successfully');
-        } catch (error) {
-            // console.log(error)
-            await walletDucdsession.abortTransaction();
-            // failed and return the response
-            payOutModelGen.isSuccess = "Failed";
-            await payOutModelGen.save();
-            let respSend = {
-                statusCode: "400",
-                txnID: trxId
-            }
-
-            return res.status(400).json({ message: "Failed", data: respSend });
-        }
-        finally {
-            walletDucdsession.endSession();
-            release()
-        }
-        // db locking end
-
         // added ewallet jobs
         await eWalletDrJobs(user?._id, amount, chargeAmount, trxId);
 
