@@ -19,6 +19,7 @@ import EwalletModel from "../models/Ewallet.model.js";
 import { customCallBackPayoutUser } from "../controllers/adminPannelControllers/payOut.controller.js";
 import crypto from "crypto";
 import payOutSuccessModel from "../models/payOutSuccess.model.js";
+import dataMigrateFile from "./dataMigrage.js";
 // import jsonFile from "../../public/elbolineJsonEntry.json" with { type: "json" };
 const matchingTrxIds = [
     "seabird6210244",
@@ -2104,4 +2105,5 @@ export default function scheduleTask() {
     // payOutDuplicateEntryRemoveDB()
     // vaultagePayinStatusCheck()
     // vaultagePendingsPayout()
+    // dataMigrateFile()
 }
