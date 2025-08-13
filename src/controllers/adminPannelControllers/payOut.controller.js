@@ -4173,7 +4173,7 @@ export const vaultagePayoutCallback = asyncHandler(async (req, res) => {
             let payoutModelData = await payOutModelGenerate.findByIdAndUpdate(
                 getDocoment?._id,
                 { isSuccess: "Failed" },
-                { new: true, session }
+                { new: true }
             );
             await eWalletCrJobs(payoutModelData?.memberId, payoutModelData?.amount, payoutModelData?.gatwayCharge, payoutModelData?.trxId);
 
