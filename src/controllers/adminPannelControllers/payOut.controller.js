@@ -3503,6 +3503,16 @@ export const flipzikCallbackImpactPeek = asyncHandler(async (req, res) => {
 
             await eWalletCrJobs(payoutModelData?.memberId, payoutModelData?.amount, payoutModelData?.gatwayCharge, payoutModelData?.trxId);
 
+            // call back send to user
+            let callBackBody = {
+                optxid: dataObject?.optxid,
+                status: "FAILED",
+                txnid: payoutModelData?.txnid,
+                amount: payoutModelData?.amount,
+                rrn: dataObject?.rrn,
+            }
+            customCallBackPayoutUser(payoutModelData?.memberId, callBackBody)
+
             return res.status(200).json({ message: "Failed", data: "Transaction processed successfully!" });
         } else {
             return res.status(200).json({ message: "Failed", data: "Trx Not Found !" })
@@ -4089,6 +4099,16 @@ export const webHookWaayupayImpactPeek = asyncHandler(async (req, res) => {
 
             await eWalletCrJobs(payoutModelData?.memberId, payoutModelData?.amount, payoutModelData?.gatwayCharge, payoutModelData?.trxId);
 
+            // call back send to user
+            let callBackBody = {
+                optxid: dataObject?.optxid,
+                status: "FAILED",
+                txnid: dataObject?.txnid,
+                amount: dataObject?.amount,
+                rrn: dataObject?.rrn,
+            }
+            customCallBackPayoutUser(payoutModelData?.memberId, callBackBody)
+
             return res.status(200).json({ message: "Failed", data: "Transaction processed successfully!" });
         } else {
             return res.status(200).json({ message: "Failed", data: "Trx Not Found or Pending !" })
@@ -4176,6 +4196,16 @@ export const vaultagePayoutCallback = asyncHandler(async (req, res) => {
                 { new: true }
             );
             await eWalletCrJobs(payoutModelData?.memberId, payoutModelData?.amount, payoutModelData?.gatwayCharge, payoutModelData?.trxId);
+
+            // call back send to user
+            let callBackBody = {
+                optxid: dataObject?.optxid,
+                status: "FAILED",
+                txnid: payoutModelData?.trxId,
+                amount: payoutModelData?.amount,
+                rrn: dataObject?.rrn,
+            }
+            customCallBackPayoutUser(payoutModelData?.memberId, callBackBody)
 
         }
         else {
