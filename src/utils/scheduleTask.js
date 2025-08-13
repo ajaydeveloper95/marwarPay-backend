@@ -2030,15 +2030,16 @@ async function vaultagePendingsPayout() {
             vaultageTrxids.push(transaction.trxId);
             console.log("Processing transaction:", transaction.trxId);
             const trxId = transaction.trxId
-            await clearPayoutPending(trxId);
-        }, 10 * 1000);
+            const systemId = transaction.systemTrxId
+            await clearPayoutPending(trxId, systemId);
+        }, 50 * 1000);
 
     } catch (error) {
         console.log("🚀 ~ :2037 ~ vaultagePendingsPayout ~ error:", error);
     }
 }
 
-async function clearPayoutPending(trxId) {
+async function clearPayoutPending(trxId, systemId) {
     const release = await transactionMutex.acquire();
     try {
         const isAlreadyProcessed = await payOutSuccessModel.findOne({ trxId: trxId });
@@ -2047,7 +2048,7 @@ async function clearPayoutPending(trxId) {
             return;
         }
         const payload = {
-            payout_id: trxId,
+            payout_id: systemId,
             AuthKey: process.env.VAULTAGE_AUTH_KEY,
         }
         const { data: vaultageData } = await axios.post("https://pending.zanithpay.com/pending/voltagePending", payload);
@@ -2073,11 +2074,11 @@ async function clearPayoutPending(trxId) {
             console.log(" scheduleTask.js:721 ~ clearPayoutPending ~ data.data:", trxId);
             callbackPayload.Data.Status = "FAILED"
             callbackPayload.Data.StatusCode = 400
-            callbackPayload.Data.APITransactionId = trxId
+            callbackPayload.Data.APITransactionId = systemId
             callbackPayload.Data.Message = "Transaction not found"
         }
         console.log("callbackPayload", callbackPayload)
-        const { data: callbackResp } = await axios.post("http://localhost:5000/apiAdmin/v1/payin/vaultageCallBack", callbackPayload)
+        const { data: callbackResp } = await axios.post("https://api.zanithpay.com/apiAdmin/v1/payin/vaultageCallBack", callbackPayload)
 
         console.log(" scheduleTask.js:725 ~ clearPayoutPending ~ callbackResp:", callbackResp);
     } catch (error) {
