@@ -825,6 +825,59 @@ export const generatePayment = async (req, res) => {
                         return res.status(500).json({ message: "Failed", data: error.message || "Internel Server Error !" })
                     }
                 }
+            case "vaultagePayInAmrita":
+                try {
+                    const qrData = await qrGenerationModel.create({
+                        memberId: user[0]?._id,
+                        name,
+                        amount,
+                        trxId,
+                        pannelUse: apiSwitchApiOption
+                    });
+
+                    const vaultagePayload = {
+                        amount,
+                        Email: email,
+                        ReferenceId: trxId,
+                        Phone: mobileNumber,
+                        Name: name
+                    }
+
+                    const vaultageHeader = {
+                        AuthKey: process.env.VAULTAGE_AMRITA_AUTH_KEY,
+                        IPAddress: process.env.VAULTAGE_IP_ADDRESS,
+                    }
+
+                    const API_URL = user[0]?.payInApi?.apiURL
+
+                    const { data: vaultageResponse } = await axios.post(API_URL, vaultagePayload, { headers: vaultageHeader });
+
+                    let apiResponse = {}
+                    if (vaultageResponse?.responseCode === 200 && vaultageResponse?.message === "SUCCESS") {
+                        qrData.qrIntent = vaultageResponse?.data?.qr;
+                        qrData.refId = vaultageResponse?.data?.walletTransactionId;
+                        qrData.save();
+                        apiResponse.status_msg = vaultageResponse?.message;
+                        apiResponse.status = vaultageResponse?.responseCode;
+                        apiResponse.qr = vaultageResponse?.data?.qr?.replace(/\s+/g, '');
+                        apiResponse.trxID = trxId;
+                    } else {
+                        qrData.callBackStatus = "Failed";
+                        qrData.save();
+                        apiResponse = {
+                            status_msg: vaultageResponse?.message || "FAILED",
+                            status: vaultageResponse?.responseCode || 500,
+                            trxID: trxId,
+                        }
+                    }
+                    return res.status(vaultageResponse?.responseCode || 500).json(new ApiResponse(vaultageResponse?.responseCode || 500, apiResponse, undefined, vaultageResponse?.message === "SUCCESS" ? "Success" : "Failed"));
+                } catch (error) {
+                    if (error.code == 11000) {
+                        return res.status(500).json({ message: "Failed", data: "trx Id duplicate Find !" })
+                    } else {
+                        return res.status(500).json({ message: "Failed", data: error.message || "Internel Server Error !" })
+                    }
+                }
             case "vaultagePayInTest":
                 try {
                     const qrData = await qrGenerationModel.create({
