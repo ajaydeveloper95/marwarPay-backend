@@ -2462,7 +2462,7 @@ export const generatePayOut = asyncHandler(async (req, res) => {
 
                 }
             },
-            vaultagePayoutApi: {
+            vaultagePayOutAmrita: {
                 url: payOutApi?.apiURL,
                 data: {
                     BenificiaryAccount: accountNumber,
@@ -2475,6 +2475,47 @@ export const generatePayOut = asyncHandler(async (req, res) => {
                 },
                 headers: {
                     AuthKey: process.env.VAULTAGE_AUTH_KEY,
+                    IPAddress: process.env.VAULTAGE_IP_ADDRESS
+                },
+                res: async (apiResponse) => {
+                    const { success, responseCode, message, data } = apiResponse;
+                    if (responseCode === 200 && success && (data.rrn || data?.status === "PENDING")) {
+                        let userRespSend = {
+                            statusCode: 1,
+                            status: 1,
+                            trxId: trxId,
+                            opt_msg: message
+
+                        }
+                        return { message: "Success", data: userRespSend }
+                    } else {
+                        payOutModelGen.isSuccess = "Failed"
+                        await payOutModelGen.save()
+                        await eWalletCrJobs(user?._id, amount, chargeAmount, trxId);
+
+                        let userRespSend = {
+                            statusCode: responseCode,
+                            status: 0,
+                            trxId: trxId,
+                            opt_msg: message || "null"
+                        }
+                        return { message: "Failed", data: userRespSend }
+                    }
+                }
+            },
+            vaultagePayOutESRGMG: {
+                url: payOutApi?.apiURL,
+                data: {
+                    BenificiaryAccount: accountNumber,
+                    BenificiaryIfsc: ifscCode,
+                    Amount: amount,
+                    TransactionId: systemGenTrxId,
+                    BenificiaryName: accountHolderName,
+                    Latitude: "26.949501",
+                    Longitude: "75.710884"
+                },
+                headers: {
+                    AuthKey: process.env.VAULTAGE_ESRGMG_AUTH_KEY,
                     IPAddress: process.env.VAULTAGE_IP_ADDRESS
                 },
                 res: async (apiResponse) => {

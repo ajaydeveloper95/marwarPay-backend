@@ -772,7 +772,7 @@ export const generatePayment = async (req, res) => {
                     }
                 }
                 break;
-            case "vaultagePayIn":
+            case "vaultagePayInAmrita":
                 try {
                     const qrData = await qrGenerationModel.create({
                         memberId: user[0]?._id,
@@ -825,7 +825,7 @@ export const generatePayment = async (req, res) => {
                         return res.status(500).json({ message: "Failed", data: error.message || "Internel Server Error !" })
                     }
                 }
-            case "vaultagePayInAmrita":
+            case "vaultagePayInESRGMG":
                 try {
                     const qrData = await qrGenerationModel.create({
                         memberId: user[0]?._id,
@@ -844,7 +844,7 @@ export const generatePayment = async (req, res) => {
                     }
 
                     const vaultageHeader = {
-                        AuthKey: process.env.VAULTAGE_AMRITA_AUTH_KEY,
+                        AuthKey: process.env.VAULTAGE_ESRGMG_AUTH_KEY,
                         IPAddress: process.env.VAULTAGE_IP_ADDRESS,
                     }
 
